@@ -52,6 +52,18 @@ The simulator plays two fictional clubs, **Riverside Athletic** (4-3-3, high pre
 
 Calibrated over 10 seeds to look like top-flight football: ~1,000 passes at ~79% completion, ~23 shots, ~2 goals, realistic sprint speeds (≤ 36 km/h). Every match is deterministic for a given seed.
 
+## The stats engine (no AI, the source of truth)
+
+`services/stats_engine` replays the stream incrementally and produces **signals**: facts with evidence that the agents may phrase but never alter.
+
+- **Player tags:** distance covered, top speed, sprint count; a tag fires when a player sets a new match-best above 33 km/h.
+- **Pass quality:** distance, completion, and a 0-100 **difficulty rating** built from distance, pressure, defenders bypassed, loft and target zone.
+- **Speed metrics:** ball speed per pass, shot speed, power-shot alerts.
+- **Three signature meters** over a rolling 5 minutes: **Control vs Chaos** (turnovers, passes under pressure, long balls, possession chains), **Pressure** (pressing actions, PPDA), **Rhythm** (passes per minute, completion).
+- **Tactical detectors:** ball-adjusted defensive line height and team width (last 3 min vs the 12 before), pressing changes (PPDA), momentum swings (field tilt).
+
+**Measured against planted ground truth across 8 matches:** every planted tactical change is detected within 1-2 match-minutes, with zero false shape alarms (`tests/test_stats_engine.py`).
+
 ## Status
 
-Work in progress. Done: shared schema, match simulator. Next: streaming, stats engine, MCP server, agents, web app.
+Work in progress. Done: shared schema, match simulator, stats engine. Next: MCP server, agents, streaming, web app.
