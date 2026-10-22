@@ -28,6 +28,30 @@ docs/                Architecture and design notes
 tests/               Unit and detector-accuracy tests
 ```
 
+## Quick start
+
+```bash
+python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+
+# Print a full synthetic match to the terminal (no tracking frames)
+python -m simulator --seed 7 --no-frames
+
+# Watch a match unfold live at 60x speed (90 minutes in ~90 seconds)
+python -m simulator --seed 7 --live --speed 60 --no-frames
+
+# Write events + 1 Hz tracking frames to JSONL
+python -m simulator --seed 7 --out data/generated/match_7.jsonl
+
+pytest
+```
+
+## The synthetic data
+
+The simulator plays two fictional clubs, **Riverside Athletic** (4-3-3, high press) and **Northgate United** (4-2-3-1), second by second. Each team follows a timeline of tactical profiles (block height, width, press intensity, tempo). These are *planted ground truth*: for example, Northgate switch to a narrow low block at 60', and the tests prove the shift is measurable in the tracking data.
+
+Calibrated over 10 seeds to look like top-flight football: ~1,000 passes at ~79% completion, ~23 shots, ~2 goals, realistic sprint speeds (≤ 36 km/h). Every match is deterministic for a given seed.
+
 ## Status
 
-Work in progress. See `docs/` for the architecture.
+Work in progress. Done: shared schema, match simulator. Next: streaming, stats engine, MCP server, agents, web app.

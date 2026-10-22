@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: the-gallery
+Version: 0.1.0
+Summary: An AI broadcast crew that turns synthetic football events into explainable, personalised match intelligence.
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.7
+Requires-Dist: numpy>=1.26
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+Requires-Dist: ruff>=0.5; extra == "dev"
