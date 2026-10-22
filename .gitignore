@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.azure/
+data/generated/
+*.log
+.DS_Store

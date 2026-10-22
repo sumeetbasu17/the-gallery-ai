@@ -1,0 +1,22 @@
+[project]
+name = "the-gallery"
+version = "0.1.0"
+description = "An AI broadcast crew that turns synthetic football events into explainable, personalised match intelligence."
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[tool.setuptools.packages.find]
+where = ["packages/schema", "services"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["packages/schema", "services"]
+
+[tool.ruff]
+line-length = 110
