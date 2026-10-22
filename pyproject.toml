@@ -10,6 +10,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
+azure = ["openai>=1.60", "azure-identity>=1.17", "azure-eventhub>=5.11"]
 
 [tool.setuptools.packages.find]
 where = ["packages/schema", "services"]
