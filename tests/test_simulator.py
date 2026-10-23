@@ -81,3 +81,24 @@ def test_speeds_are_human(matches):
     m = _run(1, frames=True)
     top = max(p.speed_kmh for f in m.frames for p in f.players)
     assert top <= 37
+
+
+def test_scenarios_drive_the_simulator_and_produce_labels():
+    from simulator.scenarios import ground_truth, random_scenario, teams_from_scenario
+
+    home, away = teams_from_scenario(random_scenario(123))
+    assert home.tactics[0].from_minute == 0 and away.tactics[0].from_minute == 0
+    labels = ground_truth(home, away)
+    assert all(lbl["minute"] >= 10 for lbl in labels)
+    match = MatchSimulator(home, away, seed=123).run(with_frames=False)
+    assert match.events[-1].type.value == "full_time"
+
+
+def test_bad_scenario_input_is_sanitised():
+    from simulator.scenarios import teams_from_scenario
+
+    home, _ = teams_from_scenario({"home": {"formation": "2-3-5", "plan": [
+        {"from_minute": 50, "block": "ultra", "width": "x", "press_intensity": 9}]}})
+    assert home.formation == "4-3-3"
+    assert home.tactics[0].from_minute == 0
+    assert home.tactics[1].block == "mid" and home.tactics[1].press_intensity == 1.0

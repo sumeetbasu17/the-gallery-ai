@@ -77,10 +77,10 @@ export default function App() {
     return (
       <main className="shell kickoff-shell">
         <Kickoff
-          onStart={(seed, speed, source) => {
+          onStart={(seed, speed, source, brief) => {
             seen.current = 0;
             setTab("live");
-            start(seed, speed, source);
+            start(seed, speed, source, brief);
           }}
         />
         {!state.connected && <p className="conn">Connecting to the match room…</p>}
@@ -125,6 +125,7 @@ export default function App() {
           )}
         </nav>
         <Controls prefs={prefs} set={set} meta={meta} languages={state.languages} />
+        {state.scenario?.storyline && <p className="storyline">Storyline: {state.scenario.storyline}</p>}
       </header>
 
       {tab === "live" && (

@@ -208,6 +208,9 @@ button, select, input { font: inherit; color: inherit; }
 .kickoff-form input, .kickoff-form select { background: var(--stand); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; color: var(--chalk); width: 150px; }
 .kickoff-form label.check { display: flex; gap: 8px; align-items: center; color: var(--chalk); font-size: 14px; }
 .kickoff-form label.check input { width: auto; }
+.brief { display: grid; gap: 4px; margin-top: 16px; font-size: 13px; color: var(--muted); }
+.brief textarea { background: var(--stand); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; color: var(--chalk); resize: vertical; font: inherit; }
+.storyline { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 14px; }
 .conn { color: var(--muted); }
 .foot { margin-top: 28px; color: var(--muted); font-size: 13px; }
 

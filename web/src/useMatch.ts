@@ -17,6 +17,7 @@ export interface MatchState {
   recap: Recap | null;
   crewStats: Record<string, number>;
   languages: string[];
+  scenario: { title?: string; storyline?: string } | null;
 }
 
 const initial: MatchState = {
@@ -35,6 +36,7 @@ const initial: MatchState = {
   recap: null,
   crewStats: {},
   languages: ["en"],
+  scenario: null,
 };
 
 type Action =
@@ -51,6 +53,7 @@ function reducer(state: MatchState, action: Action): MatchState {
       return {
         ...state,
         running: data.status?.running ?? false,
+        scenario: data.status?.scenario ?? null,
         metadata: data.metadata,
         score: data.score ?? state.score,
         minute: data.minute ?? 0,
@@ -85,7 +88,7 @@ function reducer(state: MatchState, action: Action): MatchState {
     case "recap":
       return { ...state, recap: data };
     case "status":
-      return { ...state, running: data.running };
+      return { ...state, running: data.running, scenario: data.scenario ?? state.scenario };
     default:
       return state;
   }
@@ -119,12 +122,12 @@ export function useMatch() {
     };
   }, []);
 
-  const start = async (seed: number, speed: number, source: "local" | "eventhub" = "local") => {
+  const start = async (seed: number, speed: number, source: "local" | "eventhub" = "local", brief = "") => {
     dispatch({ type: "reset" });
     await fetch("/api/match/start", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ seed, speed, source }),
+      body: JSON.stringify({ seed, speed, source, brief }),
     });
   };
 

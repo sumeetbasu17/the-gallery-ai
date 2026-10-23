@@ -77,6 +77,7 @@ class StartRequest(BaseModel):
     seed: int = 7
     speed: float = 20.0
     source: str = "local"
+    brief: str = ""
 
 
 @app.get("/api/health")
@@ -93,8 +94,8 @@ async def state():
 @app.post("/api/match/start")
 async def start(req: StartRequest):
     speed = max(1.0, min(120.0, req.speed))
-    await room.start(seed=req.seed, speed=speed, source=req.source)
-    return {"started": True, "seed": req.seed, "speed": speed}
+    await room.start(seed=req.seed, speed=speed, source=req.source, brief=req.brief)
+    return {"started": True, "seed": req.seed, "speed": speed, "scenario": room.status.get("scenario")}
 
 
 @app.post("/api/match/stop")

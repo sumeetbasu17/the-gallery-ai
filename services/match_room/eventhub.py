@@ -15,6 +15,7 @@ from typing import AsyncIterator
 
 from gallery_schema.events import Envelope
 from simulator import MatchSimulator, northgate_united, riverside_athletic
+from simulator.scenarios import teams_from_scenario
 
 BATCH_EVERY_S = 0.25
 
@@ -23,12 +24,13 @@ def _ns() -> str:
     return os.environ["EVENTHUB_NAMESPACE"]
 
 
-async def publish(seed: int, speed: float) -> None:
+async def publish(seed: int, speed: float, scenario: dict | None = None) -> None:
     from azure.eventhub import EventData
     from azure.eventhub.aio import EventHubProducerClient
     from azure.identity.aio import DefaultAzureCredential
 
-    match = MatchSimulator(riverside_athletic(), northgate_united(), seed=seed).run()
+    home, away = teams_from_scenario(scenario) if scenario else (riverside_athletic(), northgate_united())
+    match = MatchSimulator(home, away, seed=seed).run()
     async with DefaultAzureCredential() as cred:
         producer = EventHubProducerClient(fully_qualified_namespace=_ns(),
                                           eventhub_name=os.environ["EVENTHUB_NAME"], credential=cred)

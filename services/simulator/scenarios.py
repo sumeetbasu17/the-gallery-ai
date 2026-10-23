@@ -1,0 +1,80 @@
+"""Tactical scenarios: turn a storyline (from the Scenario Writer agent or a random draw) into teams.
+
+A scenario only changes *how* the fictional clubs play over time. Because the
+timeline is known, every generated match comes with ground-truth labels.
+"""
+
+from __future__ import annotations
+
+import random
+from typing import Any
+
+from gallery_schema.events import TacticalProfile, Team
+
+from .clubs import northgate_united, riverside_athletic
+from .formations import FORMATIONS
+
+BLOCKS = ("high", "mid", "low")
+WIDTHS = ("wide", "balanced", "narrow")
+
+
+def _clean_plan(plan: list[dict[str, Any]]) -> list[TacticalProfile]:
+    rows = []
+    for p in plan or []:
+        try:
+            rows.append(TacticalProfile(
+                from_minute=max(0, min(85, int(p.get("from_minute", 0)))),
+                block=p.get("block") if p.get("block") in BLOCKS else "mid",
+                width=p.get("width") if p.get("width") in WIDTHS else "balanced",
+                press_intensity=max(0.0, min(1.0, float(p.get("press_intensity", 0.5)))),
+                tempo=max(0.0, min(1.0, float(p.get("tempo", 0.5)))),
+            ))
+        except (TypeError, ValueError):
+            continue
+    rows.sort(key=lambda r: r.from_minute)
+    # keep changes at least 10 minutes apart so each phase is long enough to detect
+    out: list[TacticalProfile] = []
+    for r in rows:
+        if not out or r.from_minute - out[-1].from_minute >= 10:
+            out.append(r)
+    if not out or out[0].from_minute != 0:
+        out.insert(0, TacticalProfile(from_minute=0))
+    return out[:4]
+
+
+def teams_from_scenario(scenario: dict[str, Any]) -> tuple[Team, Team]:
+    home, away = riverside_athletic(), northgate_united()
+    for team, key in ((home, "home"), (away, "away")):
+        spec = scenario.get(key) or {}
+        team.tactics = _clean_plan(spec.get("plan", []))
+        if spec.get("formation") in FORMATIONS:
+            team.formation = spec["formation"]
+    return home, away
+
+
+def random_scenario(seed: int) -> dict[str, Any]:
+    """A plausible random tactical story, for bulk dataset generation."""
+    rng = random.Random(seed)
+
+    def plan() -> list[dict[str, Any]]:
+        phases = [0] + sorted(rng.sample(range(25, 80, 5), rng.randint(0, 2)))
+        return [{"from_minute": m, "block": rng.choice(BLOCKS), "width": rng.choice(WIDTHS),
+                 "press_intensity": round(rng.uniform(0.15, 0.85), 2), "tempo": round(rng.uniform(0.3, 0.75), 2)}
+                for m in phases]
+
+    return {"title": f"Random scenario {seed}", "storyline": "Randomly drawn tactical timeline.",
+            "home": {"formation": rng.choice(list(FORMATIONS)), "plan": plan()},
+            "away": {"formation": rng.choice(list(FORMATIONS)), "plan": plan()}}
+
+
+def ground_truth(home: Team, away: Team) -> list[dict[str, Any]]:
+    """Tactical changes that a perfect detector would report."""
+    labels = []
+    for team in (home, away):
+        prev = team.tactics[0]
+        for t in team.tactics[1:]:
+            labels.append({"side": team.side.value, "team": team.name, "minute": t.from_minute,
+                           "block": [prev.block, t.block], "width": [prev.width, t.width],
+                           "press": [prev.press_intensity, t.press_intensity]})
+            prev = t
+    return labels

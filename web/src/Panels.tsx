@@ -264,7 +264,10 @@ export function GlossaryDialog({ term, onClose }: { term: string; onClose: () =>
 }
 
 /* ------------------------------------------------------------------- Kickoff */
-export function Kickoff({ onStart }: { onStart: (seed: number, speed: number, source: "local" | "eventhub") => void }) {
+export function Kickoff({ onStart }: {
+  onStart: (seed: number, speed: number, source: "local" | "eventhub", brief: string) => void;
+}) {
+  const [brief, setBrief] = useState("");
   const [seed, setSeed] = useState(7);
   const [speed, setSpeed] = useState(20);
   const [hub, setHub] = useState(false);
@@ -286,6 +289,16 @@ export function Kickoff({ onStart }: { onStart: (seed: number, speed: number, so
         your language, for your club, at your level.
       </p>
       <p className="muted">Riverside Athletic v Northgate United, a synthetic match generated live. Clubs and players are fictional.</p>
+      <label className="brief">
+        <span>Storyline (optional). The Scenario Writer agent turns it into the match.</span>
+        <textarea
+          rows={2}
+          maxLength={400}
+          value={brief}
+          placeholder="Northgate press high early, then drop into a low block to protect a lead after the hour."
+          onChange={(e) => setBrief(e.target.value)}
+        />
+      </label>
       <div className="kickoff-form">
         <label>
           <span>Match seed</span>
@@ -305,7 +318,7 @@ export function Kickoff({ onStart }: { onStart: (seed: number, speed: number, so
             <span>Stream through Azure Event Hubs</span>
           </label>
         )}
-        <button className="primary big" onClick={() => onStart(seed, speed, hub ? "eventhub" : "local")}>
+        <button className="primary big" onClick={() => onStart(seed, speed, hub ? "eventhub" : "local", brief)}>
           Kick off
         </button>
       </div>

@@ -103,6 +103,18 @@ cd web && npm install && npm run dev        # open http://localhost:5173
 
 Pick a seed and a speed, press **Kick off**, and switch between **Casual / Analyst**, a club lens, **Player cam**, a single-meter **Focus**, and **English / हिन्दी / Español**. The **Producer** tab shows the crew's handoffs live. Set `GALLERY_ANALYST_VIA_MCP=1` to make the Analyst call the live `/mcp` endpoint over real MCP.
 
+## Synthetic data at scale
+
+```bash
+python -m simulator.dataset --matches 50 --out data/generated/dataset --frames
+```
+
+Every match gets a random tactical scenario, and the output includes `labels.jsonl` with the planted ground truth, `matches.csv` summaries and per-match `events.jsonl` / `frames.jsonl`, ready for a Microsoft Fabric Lakehouse or any dataframe. The **Scenario Writer** agent does the same from a one-line storyline typed on the kick-off screen.
+
+## Evaluation
+
+`python scripts/evaluate.py --matches 20` replays matches with random tactical scenarios the detectors were never tuned on and scores them against the planted ground truth; add `--crew` to also score the agents (fact-check pass rate, fallbacks, latency per agent). Latest results: [docs/evaluation.md](docs/evaluation.md).
+
 ## Status
 
-Work in progress. Done: schema, simulator, stats engine, MCP server, agent crew. match room service, web app. Next: Azure deployment, evaluations, Scenario Writer.
+Work in progress. Done: schema, simulator, stats engine, MCP server, agent crew. match room service, web app. Azure infrastructure, Scenario Writer, dataset generator, evaluation harness.

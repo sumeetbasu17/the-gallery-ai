@@ -19,6 +19,7 @@ from agents import Crew, Settings
 from gallery_schema.events import Envelope
 from gallery_schema.overlays import Overlay
 from simulator import MatchSimulator, northgate_united, riverside_athletic
+from simulator.scenarios import ground_truth, teams_from_scenario
 from stats_engine import MatchState
 
 from .store import InsightStore
@@ -39,6 +40,7 @@ class MatchRoom:
         self.task: Optional[asyncio.Task] = None
         self.status: dict[str, Any] = {"running": False, "seed": None, "speed": None, "clock": 0.0}
         self.trace_log: list[dict] = []
+        self.scenario: Optional[dict] = None
         self.frames_sent = 0
         self._last_frame_sent = 0.0
         self._last_meter = -1e9
@@ -79,8 +81,13 @@ class MatchRoom:
                 "languages": self.settings.languages}
 
     # --------------------------------------------------------------- run
-    async def start(self, seed: int = 7, speed: float = 20.0, source: str = "local") -> None:
+    async def start(self, seed: int = 7, speed: float = 20.0, source: str = "local", brief: str = "") -> None:
         await self.stop()
+        self.scenario = None
+        if brief.strip():
+            from agents.scenario import write_scenario
+
+            self.scenario = await write_scenario(self.settings, brief)
         self.state = MatchState()
         self.trace_log = []
         self._last_meter = -1e9
@@ -101,6 +108,11 @@ class MatchRoom:
         self.crew = Crew(self.settings, self.state, tools=self.analyst_tools, on_overlay=on_overlay,
                          on_trace=on_trace)
         self.status = {"running": True, "seed": seed, "speed": speed, "clock": 0.0, "source": source}
+        if self.scenario:
+            home, away = teams_from_scenario(self.scenario)
+            self.status["scenario"] = {"title": self.scenario.get("title"),
+                                       "storyline": self.scenario.get("storyline"),
+                                       "ground_truth": ground_truth(home, away)}
         runner = self._run_local(seed, speed) if source == "local" else self._run_eventhub(seed, speed)
         self.task = asyncio.create_task(runner)
 
@@ -149,7 +161,9 @@ class MatchRoom:
                                                 if self.crew else None})
 
     async def _run_local(self, seed: int, speed: float) -> None:
-        match = MatchSimulator(riverside_athletic(), northgate_united(), seed=seed).run()
+        home, away = teams_from_scenario(self.scenario) if self.scenario else (riverside_athletic(), northgate_united())
+        match = MatchSimulator(home, away, seed=seed).run()
+        await self.broadcast("status", self.status)
         started = time.monotonic()
         try:
             for env in match.envelopes():
@@ -170,9 +184,9 @@ class MatchRoom:
             await self.broadcast("status", self.status)
 
     @staticmethod
-    async def _delayed_publish(publish, seed: int, speed: float) -> None:
+    async def _delayed_publish(publish, seed: int, speed: float, scenario) -> None:
         await asyncio.sleep(3)
-        await publish(seed, speed)
+        await publish(seed, speed, scenario)
 
     async def _run_eventhub(self, seed: int, speed: float) -> None:
         from .eventhub import consume, publish
@@ -180,7 +194,7 @@ class MatchRoom:
         try:
             stream = consume()
             # start the simulator publisher once the consumer is listening
-            self._publisher = asyncio.create_task(self._delayed_publish(publish, seed, speed))
+            self._publisher = asyncio.create_task(self._delayed_publish(publish, seed, speed, self.scenario))
             async for env in stream:
                 await self.ingest(env)
             if self.crew:
