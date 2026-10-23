@@ -41,6 +41,9 @@ async def run(args) -> None:
 
     crew = Crew(settings, state, on_overlay=show)
     print(f"mode={settings.mode} model={settings.fast_model} languages={settings.languages}")
+    if settings.mode == "offline" and not args.offline:
+        print("WARNING: no AZURE_AI_PROJECT_ENDPOINT found (.env in this folder or a parent), "
+              "so the scripted offline client is being used instead of Foundry.")
     started = time.monotonic()
     for env in match.envelopes():
         t = env.event.second if env.event else env.frame.second if env.frame else 0.0

@@ -14,8 +14,21 @@ import os
 from dataclasses import dataclass, field
 
 
-def load_dotenv(path: str = ".env") -> None:
-    if not os.path.exists(path):
+def find_dotenv(name: str = ".env") -> str | None:
+    """Look for .env in the current folder and its parents (so it works from services/ too)."""
+    from pathlib import Path
+
+    here = Path.cwd().resolve()
+    for folder in (here, *here.parents):
+        candidate = folder / name
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def load_dotenv(path: str | None = None) -> None:
+    path = path or find_dotenv()
+    if not path or not os.path.exists(path):
         return
     with open(path, encoding="utf-8") as fh:
         for line in fh:
