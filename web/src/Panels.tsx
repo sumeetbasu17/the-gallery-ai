@@ -264,9 +264,20 @@ export function GlossaryDialog({ term, onClose }: { term: string; onClose: () =>
 }
 
 /* ------------------------------------------------------------------- Kickoff */
-export function Kickoff({ onStart }: { onStart: (seed: number, speed: number) => void }) {
+export function Kickoff({ onStart }: { onStart: (seed: number, speed: number, source: "local" | "eventhub") => void }) {
   const [seed, setSeed] = useState(7);
   const [speed, setSpeed] = useState(20);
+  const [hub, setHub] = useState(false);
+  const [hubAvailable, setHubAvailable] = useState(false);
+  useEffect(() => {
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((h) => {
+        setHubAvailable(!!h.eventhub);
+        setHub(!!h.eventhub);
+      })
+      .catch(() => undefined);
+  }, []);
   return (
     <div className="kickoff">
       <h1>The Gallery</h1>
@@ -288,7 +299,13 @@ export function Kickoff({ onStart }: { onStart: (seed: number, speed: number) =>
             <option value={40}>40× (about 2½ minutes)</option>
           </select>
         </label>
-        <button className="primary big" onClick={() => onStart(seed, speed)}>
+        {hubAvailable && (
+          <label className="check">
+            <input type="checkbox" checked={hub} onChange={(e) => setHub(e.target.checked)} />
+            <span>Stream through Azure Event Hubs</span>
+          </label>
+        )}
+        <button className="primary big" onClick={() => onStart(seed, speed, hub ? "eventhub" : "local")}>
           Kick off
         </button>
       </div>

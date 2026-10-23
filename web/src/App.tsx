@@ -77,10 +77,10 @@ export default function App() {
     return (
       <main className="shell kickoff-shell">
         <Kickoff
-          onStart={(seed, speed) => {
+          onStart={(seed, speed, source) => {
             seen.current = 0;
             setTab("live");
-            start(seed, speed);
+            start(seed, speed, source);
           }}
         />
         {!state.connected && <p className="conn">Connecting to the match room…</p>}

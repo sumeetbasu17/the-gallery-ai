@@ -119,12 +119,12 @@ export function useMatch() {
     };
   }, []);
 
-  const start = async (seed: number, speed: number) => {
+  const start = async (seed: number, speed: number, source: "local" | "eventhub" = "local") => {
     dispatch({ type: "reset" });
     await fetch("/api/match/start", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ seed, speed }),
+      body: JSON.stringify({ seed, speed, source }),
     });
   };
 

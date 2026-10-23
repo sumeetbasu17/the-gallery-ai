@@ -21,6 +21,9 @@ azure = [
   "openai>=1.60",
   "azure-identity>=1.17",
   "azure-eventhub>=5.11",
+  "azure-cosmos>=4.7",
+  "azure-monitor-opentelemetry>=1.6",
+  "aiohttp>=3.9",
 ]
 
 [tool.setuptools.packages.find]

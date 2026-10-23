@@ -21,6 +21,8 @@ from gallery_schema.overlays import Overlay
 from simulator import MatchSimulator, northgate_united, riverside_athletic
 from stats_engine import MatchState
 
+from .store import InsightStore
+
 log = logging.getLogger("gallery.room")
 
 FRAME_MIN_INTERVAL_S = 0.1   # cap frame broadcasts at 10 per real second
@@ -40,6 +42,8 @@ class MatchRoom:
         self.frames_sent = 0
         self._last_frame_sent = 0.0
         self._last_meter = -1e9
+        self.store = InsightStore()
+        self._publisher: Optional[asyncio.Task] = None
 
     # ------------------------------------------------------------ viewers
     async def join(self, ws: WebSocket) -> None:
@@ -82,7 +86,10 @@ class MatchRoom:
         self._last_meter = -1e9
 
         async def on_overlay(ov: Overlay) -> None:
-            await self.broadcast("overlay", ov.model_dump(mode="json"))
+            doc = ov.model_dump(mode="json")
+            await self.broadcast("overlay", doc)
+            if ov.kind.value in ("tactical_shift", "key_moment", "match_status"):
+                await self.store.save({**doc, "id": ov.overlay_id, "saved_at": time.time()})
             if self.crew and self.crew.board.recap and ov.kind.value == "match_status" and ov.minute >= 90:
                 await self.broadcast("recap", self.crew.board.recap)
 
@@ -94,10 +101,12 @@ class MatchRoom:
         self.crew = Crew(self.settings, self.state, tools=self.analyst_tools, on_overlay=on_overlay,
                          on_trace=on_trace)
         self.status = {"running": True, "seed": seed, "speed": speed, "clock": 0.0, "source": source}
-        runner = self._run_local(seed, speed) if source == "local" else self._run_eventhub()
+        runner = self._run_local(seed, speed) if source == "local" else self._run_eventhub(seed, speed)
         self.task = asyncio.create_task(runner)
 
     async def stop(self) -> None:
+        if self._publisher and not self._publisher.done():
+            self._publisher.cancel()
         if self.task and not self.task.done():
             self.task.cancel()
             try:
@@ -153,16 +162,34 @@ class MatchRoom:
                 await self.crew.drain()
                 if self.crew.board.recap:
                     await self.broadcast("recap", self.crew.board.recap)
+                    await self.store.save({"id": f"recap-{match.metadata.match_id}",
+                                           "match_id": match.metadata.match_id, "kind": "recap",
+                                           "saved_at": time.time(), **self.crew.board.recap})
         finally:
             self.status["running"] = False
             await self.broadcast("status", self.status)
 
-    async def _run_eventhub(self) -> None:
-        from .eventhub import consume
+    @staticmethod
+    async def _delayed_publish(publish, seed: int, speed: float) -> None:
+        await asyncio.sleep(3)
+        await publish(seed, speed)
+
+    async def _run_eventhub(self, seed: int, speed: float) -> None:
+        from .eventhub import consume, publish
 
         try:
-            async for env in consume():
+            stream = consume()
+            # start the simulator publisher once the consumer is listening
+            self._publisher = asyncio.create_task(self._delayed_publish(publish, seed, speed))
+            async for env in stream:
                 await self.ingest(env)
+            if self.crew:
+                await self.crew.drain()
+                if self.crew.board.recap:
+                    await self.broadcast("recap", self.crew.board.recap)
+                    await self.store.save({"id": f"recap-{self.state.meta.match_id}",
+                                           "match_id": self.state.meta.match_id, "kind": "recap",
+                                           "saved_at": time.time(), **self.crew.board.recap})
         finally:
             self.status["running"] = False
             await self.broadcast("status", self.status)

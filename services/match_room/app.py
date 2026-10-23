@@ -35,6 +35,15 @@ from .room import MatchRoom
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 
+if os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+    # Agent Framework emits OpenTelemetry spans for every agent run and tool call;
+    # Azure Monitor ships them to Application Insights.
+    from azure.monitor.opentelemetry import configure_azure_monitor
+    from agent_framework.observability import enable_instrumentation
+
+    configure_azure_monitor(logger_name="gallery")
+    enable_instrumentation()
+
 settings = Settings.from_env()
 room = MatchRoom(settings)
 mcp, _ = create_mcp_server(lambda: room.state)
@@ -72,7 +81,8 @@ class StartRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    return {"ok": True, "mode": settings.mode, "model": settings.fast_model, "running": room.status["running"]}
+    return {"ok": True, "mode": settings.mode, "model": settings.fast_model, "running": room.status["running"],
+            "eventhub": bool(os.environ.get("EVENTHUB_NAMESPACE")), "cosmos": room.store.enabled}
 
 
 @app.get("/api/state")
@@ -91,6 +101,12 @@ async def start(req: StartRequest):
 async def stop():
     await room.stop()
     return {"stopped": True}
+
+
+@app.get("/api/history")
+async def history(limit: int = 50):
+    """Insights that aired in recent matches (Cosmos DB), for studio review."""
+    return await room.store.recent(limit=max(1, min(200, limit)))
 
 
 @app.get("/api/glossary")

@@ -206,6 +206,8 @@ button, select, input { font: inherit; color: inherit; }
 .kickoff-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; margin-top: 22px; }
 .kickoff-form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .kickoff-form input, .kickoff-form select { background: var(--stand); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; color: var(--chalk); width: 150px; }
+.kickoff-form label.check { display: flex; gap: 8px; align-items: center; color: var(--chalk); font-size: 14px; }
+.kickoff-form label.check input { width: auto; }
 .conn { color: var(--muted); }
 .foot { margin-top: 28px; color: var(--muted); font-size: 13px; }
 
