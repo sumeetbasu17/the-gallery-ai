@@ -91,8 +91,10 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
     def _analyst(self, d, results):
         sig = d.get("signal", {})
         nums = [{"metric": e["metric"], "value": e["value"]} for e in sig.get("evidence", [])][:3]
-        terms = [t for t in ("low block", "mid block", "high block", "pressing", "playing narrow")
-                 if t.split()[0] in sig.get("summary", "").lower()]
+        summary = sig.get("summary", "").lower()
+        terms = [t for t, cue in (("low block", "low block"), ("mid block", "mid block"),
+                                  ("high block", "high block"), ("pressing", "pressing"),
+                                  ("playing narrow", "narrowed")) if cue in summary]
         return {"observation": sig.get("summary", ""),
                 "explanation": "The shape change shows in the tracking data over the last few minutes.",
                 "key_numbers": nums, "glossary_terms": terms}

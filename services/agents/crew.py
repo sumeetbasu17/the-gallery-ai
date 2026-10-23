@@ -151,6 +151,12 @@ class Crew:
             await self._emit(self.on_trace, {"agent": agent.name, "action": action, "status": "error", "ms": ms})
             return None, []
 
+    async def _step(self, trace: list[AgentStep], agent: str, action: str, status: str = "ok",
+                    note: Optional[str] = None) -> None:
+        trace.append(AgentStep(agent=agent, action=action, status=status, note=note))
+        await self._emit(self.on_trace, {"agent": agent, "action": action, "status": status, "ms": 0,
+                                         "note": note})
+
     def roster(self) -> set[str]:
         return set(self.state.names.values())
 
@@ -304,19 +310,18 @@ class Crew:
                 if sem is not None and not sem.supported:
                     problems += sem.problems or ["Claim not supported by the evidence."]
             if not problems:
-                trace.append(AgentStep(agent="fact_checker", action="verify numbers, names, direction",
-                                       note="approved"))
+                await self._step(trace, "fact_checker", "verify numbers, names, direction", note="approved")
                 story = draft
                 break
             board.stats["rejections"] += 1
-            trace.append(AgentStep(agent="fact_checker", action="verify numbers, names, direction",
-                                   status="rejected", note="; ".join(problems)[:240]))
+            await self._step(trace, "fact_checker", "verify numbers, names, direction", "rejected",
+                             "; ".join(problems)[:240])
             story_payload["feedback"] = problems
         if story is None:
             story = fallback.story(s)
             status = "fallback"
             board.stats["fallbacks"] += 1
-            trace.append(AgentStep(agent="storyteller", action="template fallback", status="fallback"))
+            await self._step(trace, "storyteller", "template fallback", "fallback")
 
         variants = await self._personalise(s, story, allowed, roster, teams, trace)
         terms = sorted(set((note.glossary_terms if note else [])) | set(find_terms(story.body + " " + s.summary)))

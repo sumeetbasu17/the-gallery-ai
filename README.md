@@ -91,6 +91,18 @@ python -m agents --seed 7 --offline            # no Azure needed (scripted clien
 python -m agents --seed 7 --until 66           # live models in your Foundry project (az login + .env)
 ```
 
+## Run the whole experience locally
+
+```bash
+# terminal 1: the match room (API + WebSocket + MCP), from the repo root
+cd services && uvicorn match_room.app:app --port 8000
+
+# terminal 2: the web app
+cd web && npm install && npm run dev        # open http://localhost:5173
+```
+
+Pick a seed and a speed, press **Kick off**, and switch between **Casual / Analyst**, a club lens, **Player cam**, a single-meter **Focus**, and **English / हिन्दी / Español**. The **Producer** tab shows the crew's handoffs live. Set `GALLERY_ANALYST_VIA_MCP=1` to make the Analyst call the live `/mcp` endpoint over real MCP.
+
 ## Status
 
-Work in progress. Done: schema, simulator, stats engine, MCP server, agent crew. Next: match room service (streaming + web socket), web app, Azure deployment.
+Work in progress. Done: schema, simulator, stats engine, MCP server, agent crew. match room service, web app. Next: Azure deployment, evaluations, Scenario Writer.
