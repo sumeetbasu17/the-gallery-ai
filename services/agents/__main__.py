@@ -38,6 +38,9 @@ async def run(args) -> None:
                 if lang != "en":
                     print(f"      ({lang}) {v['casual'].headline}: {v['casual'].body[:110]}")
             print(f"      agents: {agents}")
+            for step in ov.trace:
+                if step.status in ("rejected", "error", "fallback"):
+                    print(f"      ! {step.agent} {step.status}: {step.note or step.action}")
 
     crew = Crew(settings, state, on_overlay=show)
     print(f"mode={settings.mode} model={settings.fast_model} languages={settings.languages}")
@@ -58,6 +61,7 @@ async def run(args) -> None:
             crew.tick(env.frame.second)
             await asyncio.sleep(0)
     await crew.drain()
+    await crew.aclose()
     if crew.board.recap and not args.until:
         r = crew.board.recap["recap"]
         print("\n==== RECAP ====\n" + r["headline"])
@@ -69,7 +73,8 @@ async def run(args) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(prog="agents")
     ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--speed", type=float, default=0, help="match-seconds per real second (0 = as fast as possible)")
+    ap.add_argument("--speed", type=float, default=30,
+                    help="match-seconds per real second (0 = as fast as possible; live models need time to keep up)")
     ap.add_argument("--until", type=int, default=0, help="stop at this minute")
     ap.add_argument("--offline", action="store_true")
     ap.add_argument("--languages", default="")

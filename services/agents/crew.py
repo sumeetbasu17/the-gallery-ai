@@ -111,6 +111,7 @@ class Crew:
         self.fan_producer = Agent(fast, prompts.FAN_PRODUCER, name="fan_producer")
         self.recap_writer = Agent(creative, prompts.RECAP, name="recap_writer")
         self._sem = asyncio.Semaphore(settings.max_parallel_moments)
+        self._facts: dict[str, dict[str, Any]] = {}
         self._tasks: set[asyncio.Task] = set()
 
     # ------------------------------------------------------------------ utils
@@ -173,8 +174,14 @@ class Crew:
 
     # --------------------------------------------------------------- intake
     def submit(self, signals: list[Signal]) -> None:
-        """Called by the match room as soon as the stats engine produces signals."""
+        """Called by the match room as soon as the stats engine produces signals.
+
+        The fact sheet is frozen here, at the moment of the signal, so a story written a few seconds
+        later still describes the match as it was when the moment happened.
+        """
         for s in signals:
+            if s.type not in QUICK:
+                self._facts[s.signal_id] = self.fact_sheet(s)
             if s.type in QUICK:
                 self._spawn(self._quick(s))
             elif s.type in MANDATORY:
@@ -194,6 +201,11 @@ class Crew:
         task = asyncio.ensure_future(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    async def aclose(self) -> None:
+        from .config import close_credentials
+
+        await close_credentials()
 
     async def drain(self) -> None:
         while self._tasks:
@@ -266,7 +278,7 @@ class Crew:
 
     async def _produce_inner(self, s: Signal) -> Overlay:
         trace: list[AgentStep] = [AgentStep(agent="stats_engine", action=f"detected {s.type.value}")]
-        facts = self.fact_sheet(s)
+        facts = self._facts.pop(s.signal_id, None) or self.fact_sheet(s)
         board = self.board
         board.win_prob.append({"minute": s.minute, **facts["win_probability"]})
         sig = s.model_dump(mode="json", exclude={"ground_truth_hint"})
@@ -277,8 +289,9 @@ class Crew:
         tool_results: list = []
         if s.type in TACTICAL or s.type in KEY:
             (note, tool_results), (verdict, _) = await asyncio.gather(
-                self._call(self.analyst, {"signal": sig, "earlier_on_air": recent}, AnalystNote, trace,
-                           "investigate with MCP tools"),
+                self._call(self.analyst, {"signal": sig, "facts_at_signal_time": facts,
+                                          "current_minute": self.state.minute, "earlier_on_air": recent},
+                           AnalystNote, trace, "investigate with MCP tools"),
                 self._call(self.judge, {"signal": sig, "score": facts["snapshot"]["score"],
                                         "minute": s.minute}, JudgeVerdict, trace, "rate importance"))
 

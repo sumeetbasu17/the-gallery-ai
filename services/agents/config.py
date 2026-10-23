@@ -68,6 +68,19 @@ class Settings:
         )
 
 
+_CREDENTIALS: list = []
+
+
+async def close_credentials() -> None:
+    """Close the async Azure credentials opened by make_client (avoids 'Unclosed client session')."""
+    while _CREDENTIALS:
+        cred = _CREDENTIALS.pop()
+        try:
+            await cred.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def make_client(settings: Settings, model: str):
     """Return an Agent Framework chat client for the configured mode."""
     if settings.mode == "offline":
@@ -78,6 +91,7 @@ def make_client(settings: Settings, model: str):
     from azure.identity.aio import DefaultAzureCredential
 
     credential = DefaultAzureCredential()
+    _CREDENTIALS.append(credential)
     if settings.mode == "foundry":
         from agent_framework.foundry import FoundryChatClient
 
