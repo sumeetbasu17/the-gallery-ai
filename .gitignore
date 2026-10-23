@@ -14,3 +14,4 @@ data/generated/
 *.log
 .DS_Store
 web/tsconfig.tsbuildinfo
+*.egg-info/
