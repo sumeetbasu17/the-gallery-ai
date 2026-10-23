@@ -6,11 +6,19 @@ requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.7",
   "numpy>=1.26",
+  "agent-framework-core>=1.23",
+  "mcp>=2.3",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
-azure = ["openai>=1.60", "azure-identity>=1.17", "azure-eventhub>=5.11"]
+azure = [
+  "agent-framework-foundry>=1.15",
+  "agent-framework-openai>=1.17",
+  "openai>=1.60",
+  "azure-identity>=1.17",
+  "azure-eventhub>=5.11",
+]
 
 [tool.setuptools.packages.find]
 where = ["packages/schema", "services"]

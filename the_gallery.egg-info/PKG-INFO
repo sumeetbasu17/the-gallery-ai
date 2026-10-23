@@ -8,3 +8,7 @@ Requires-Dist: numpy>=1.26
 Provides-Extra: dev
 Requires-Dist: pytest>=8; extra == "dev"
 Requires-Dist: ruff>=0.5; extra == "dev"
+Provides-Extra: azure
+Requires-Dist: openai>=1.60; extra == "azure"
+Requires-Dist: azure-identity>=1.17; extra == "azure"
+Requires-Dist: azure-eventhub>=5.11; extra == "azure"

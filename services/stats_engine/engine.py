@@ -26,6 +26,7 @@ SHAPE_CONFIRMATIONS = 2   # consecutive evaluations before a block/width change 
 SHAPE_BASELINE_S = 900.0  # compare the last 3 min against the 12 min before
 SHAPE_COOLDOWN_S = 600.0
 LINE_DELTA_M = 5.0
+MOMENTUM_MIN_PASSES = 12  # final-third passes needed in the window before tilt means anything
 BALL_ADJUST = 0.2       # metres of line movement per metre of ball movement
 WIDTH_DELTA_M = 4.0
 SIDES = ("home", "away")
@@ -503,6 +504,11 @@ class MatchState:
         tilt = m["control_vs_chaos"]["field_tilt_pct"]
         home_share = tilt.get(self.team_name["home"], 50)
         out: list[Signal] = []
+        ft_passes = sum(1 for e in self.all_events_since(self.clock - WINDOW_S)
+                        if e.type == EventType.PASS and e.side and e.end is not None
+                        and _attack_x(e.side.value, e.end.x) > 70)
+        if ft_passes < MOMENTUM_MIN_PASSES:
+            return out
         if self.last_control is not None and abs(home_share - self.last_control) >= 30:
             gaining = "home" if home_share > self.last_control else "away"
             self.last_momentum_signal = self.clock

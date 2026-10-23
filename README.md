@@ -64,6 +64,33 @@ Calibrated over 10 seeds to look like top-flight football: ~1,000 passes at ~79%
 
 **Measured against planted ground truth across 8 matches:** every planted tactical change is detected within 1-2 match-minutes, with zero false shape alarms (`tests/test_stats_engine.py`).
 
+## The MCP server
+
+`services/mcp_server` exposes read-only match tools over the Model Context Protocol: `get_match_snapshot`, `get_meters`, `get_team_shape`, `get_player_summary`, `list_players`, `get_recent_events`, `get_top_performers`, `win_probability` and `explain_term` (the Jargon Decoder). Agents can only see the match through these tools, so every number they quote is traceable.
+
+```bash
+python -m mcp_server --seed 7 --until 70 --port 8765   # explore with any MCP client
+```
+
+## The agent crew (Microsoft Agent Framework + Foundry)
+
+| Agent | Role |
+|---|---|
+| **Match Director** | Decides what airs: air budget, cooldowns, LLM tie-break when moments compete |
+| **Tactical Analyst** | Investigates a signal with MCP tools and explains the mechanism |
+| **Moment Judge** | Rates importance from win probability, score and minute (runs in parallel with the Analyst) |
+| **Storyteller** | Writes the on-screen line from verified facts |
+| **Fact-Checker** | Deterministic check of every number, name and direction, plus an LLM semantic check; rejects and sends back for a rewrite |
+| **Fan Producer** | Casual, analyst, home-fan and away-fan versions in every language |
+| **Recap writer** | Full-time recap, fact-checked like everything else |
+
+Quick data tags (top speed, shot speed, pass difficulty, cards) skip the LLM entirely. If a model call fails or a story fails fact-checking twice, deterministic templates keep the broadcast running, and the overlay is marked unverified. Every overlay carries its agent trace for the Producer view.
+
+```bash
+python -m agents --seed 7 --offline            # no Azure needed (scripted client)
+python -m agents --seed 7 --until 66           # live models in your Foundry project (az login + .env)
+```
+
 ## Status
 
-Work in progress. Done: shared schema, match simulator, stats engine. Next: MCP server, agents, streaming, web app.
+Work in progress. Done: schema, simulator, stats engine, MCP server, agent crew. Next: match room service (streaming + web socket), web app, Azure deployment.

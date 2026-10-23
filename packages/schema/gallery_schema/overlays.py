@@ -21,6 +21,7 @@ class OverlayKind(str, Enum):
     KEY_MOMENT = "key_moment"
     MILESTONE = "milestone"
     METER_UPDATE = "meter_update"    # control/chaos, pressure, rhythm
+    MATCH_STATUS = "match_status"    # half-time / full-time cards
     RECAP = "recap"
 
 
@@ -30,6 +31,23 @@ class Evidence(BaseModel):
     baseline: Optional[float] = None
     window: Optional[str] = None  # e.g. "55'-62'"
     source_tool: Optional[str] = None  # MCP tool that produced it
+
+
+class Variant(BaseModel):
+    """One audience's version of an insight in one language."""
+
+    headline: str
+    body: str = ""
+
+
+class AgentStep(BaseModel):
+    """One hop in the agent crew's handoff chain, shown in the Producer view."""
+
+    agent: str
+    action: str
+    status: Literal["ok", "retry", "rejected", "fallback", "skipped", "error"] = "ok"
+    ms: int = 0
+    note: Optional[str] = None
 
 
 class Overlay(BaseModel):
@@ -49,3 +67,10 @@ class Overlay(BaseModel):
     verified: bool = False
     produced_by: list[str] = Field(default_factory=list)  # agent trail
     glossary_terms: list[str] = Field(default_factory=list)
+    minute: int = 0
+    signal_id: Optional[str] = None
+    importance_reason: Optional[str] = None
+    # variants[language][audience] where audience is casual | analyst | home_fans | away_fans
+    variants: dict[str, dict[str, Variant]] = Field(default_factory=dict)
+    trace: list[AgentStep] = Field(default_factory=list)
+    win_probability: Optional[dict[str, float]] = None

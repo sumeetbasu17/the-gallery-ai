@@ -1,6 +1,11 @@
 pydantic>=2.7
 numpy>=1.26
 
+[azure]
+openai>=1.60
+azure-identity>=1.17
+azure-eventhub>=5.11
+
 [dev]
 pytest>=8
 ruff>=0.5
