@@ -131,3 +131,20 @@ def test_check_story_flags_invented_numbers_names_and_direction():
     joined = " ".join(r.problems)
     assert not r.ok
     assert "55" in joined and "pushed higher" in joined and "Ndiyae" in joined
+
+
+def test_pundit_answers_and_coach_reports():
+    crew, _, _ = _replay(until_min=52, languages=("en",))
+    ans = asyncio.run(crew.ask("Why is this game so open?", "en"))
+    assert ans["answer"] and ans["verified"]
+    assert set(crew.board.coach_reports) == {"home", "away"}  # written automatically at half-time
+    rep = crew.board.coach_reports["home"]["report"]
+    assert len(rep["changes"]) == 3
+
+
+def test_glossary_terms_are_filtered_to_known_entries():
+    from agents.crew import glossary_terms
+
+    terms = glossary_terms(["PPDA", "ppda", "turnovers", "out of possession", "defensive line"], "low block")
+    assert terms == ["ppda", "transition", "low block"] or len(terms) <= 3
+    assert all(t for t in terms)

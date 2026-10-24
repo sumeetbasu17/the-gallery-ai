@@ -232,6 +232,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'EVENTHUB_CONSUMER_GROUP', value: matchRoomGroup.name }
             { name: 'COSMOS_ENDPOINT', value: cosmos.properties.documentEndpoint }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
+            { name: 'SPEECH_REGION', value: foundry.location }
+            { name: 'SPEECH_RESOURCE_ID', value: foundry.id }
             { name: 'PORT', value: '8000' }
           ]
           probes: [

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Metadata, Prefs, Recap, TraceStep } from "./types";
-import { AGENT_NAMES, LANG_NAMES, speak } from "./lib";
+import { AGENT_NAMES, LANG_NAMES } from "./lib";
+import { playAudio } from "./Extras";
 
 /* ------------------------------------------------------------------ Controls */
 export function Controls({ prefs, set, meta, languages }: {
@@ -189,16 +190,27 @@ export function Producer({ trace }: { trace: TraceStep[] }) {
 }
 
 /* --------------------------------------------------------------------- Recap */
-export function RecapView({ recap }: { recap: Recap }) {
+export function RecapView({ recap, language, chart }: { recap: Recap; language: string; chart: React.ReactNode }) {
+  const [audio, setAudio] = useState("");
   const r = recap.recap;
-  const text = [r.headline, ...r.paragraphs].join(" ");
+  const tr = recap.translations?.[language] ?? recap.translations?.en ?? { headline: r.headline, paragraphs: r.paragraphs };
+  const text = [tr.headline, ...tr.paragraphs].join(" ");
   return (
     <article className="recap">
-      <h2>{r.headline}</h2>
-      <button className="primary" onClick={() => speak(text, "en")}>
+      <h2>{tr.headline}</h2>
+      <button
+        className="primary"
+        onClick={async () => {
+          setAudio("Loading audio…");
+          const how = await playAudio(text, language);
+          setAudio(how === "azure" ? "Voice: Azure AI Speech" : how === "browser" ? "Voice: your browser" : "Audio isn't available here.");
+        }}
+      >
         Play audio recap
       </button>
-      {r.paragraphs.map((p, i) => (
+      {audio && <span className="audio-note">{audio}</span>}
+      {chart}
+      {tr.paragraphs.map((p, i) => (
         <p key={i}>{p}</p>
       ))}
       {r.key_moments.length > 0 && (

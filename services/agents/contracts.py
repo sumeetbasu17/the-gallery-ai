@@ -90,3 +90,31 @@ class Scenario(BaseModel):
     storyline: str
     home: ClubIdea
     away: ClubIdea
+
+
+class PunditAnswer(BaseModel):
+    """Ask the pundit: an answer grounded in tool results."""
+
+    answer: str = Field(description="Two to four sentences answering the viewer, in the requested language.")
+    key_numbers: list[KeyNumber] = Field(default_factory=list, description="Numbers used, copied from tools.")
+    glossary_terms: list[str] = Field(default_factory=list)
+    on_topic: bool = Field(True, description="False if the question is not about this match.")
+
+
+class CoachChange(BaseModel):
+    change: str = Field(description="One concrete tactical adjustment.")
+    why: str = Field(description="The evidence that motivates it, one sentence.")
+
+
+class CoachReport(BaseModel):
+    """Half-time coach report for one club."""
+
+    headline: str
+    working: list[str] = Field(description="Two or three things going well, each backed by a number.")
+    not_working: list[str] = Field(description="Two or three problems, each backed by a number.")
+    changes: list[CoachChange] = Field(description="Exactly three tactical changes to consider.")
+
+
+class RecapTranslation(BaseModel):
+    headline: str
+    paragraphs: list[str]

@@ -65,6 +65,8 @@ class Overlay(BaseModel):
     side: Optional[str] = None
     evidence: list[Evidence] = Field(default_factory=list)
     verified: bool = False
+    # full: numbers + wording checked; numbers: numbers/names/direction checked; template: deterministic fallback
+    check_level: Literal["full", "numbers", "template"] = "full"
     produced_by: list[str] = Field(default_factory=list)  # agent trail
     glossary_terms: list[str] = Field(default_factory=list)
     minute: int = 0

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Feed } from "./Feed";
 import { Meters } from "./Meters";
 import { Controls, GlossaryDialog, Kickoff, PlayerCard, Producer, RecapView } from "./Panels";
+import { AskPundit, CoachView, StoryChart } from "./Extras";
 import { Pitch } from "./Pitch";
 import { NARRATIVE } from "./lib";
 import type { Overlay, Prefs } from "./types";
@@ -18,7 +19,7 @@ function loadPrefs(): Prefs {
   }
 }
 
-type Tab = "live" | "producer" | "recap";
+type Tab = "live" | "coach" | "producer" | "recap";
 
 export default function App() {
   const { state, start } = useMatch();
@@ -105,6 +106,9 @@ export default function App() {
           <button aria-pressed={tab === "live"} onClick={() => setTab("live")}>
             Live
           </button>
+          <button aria-pressed={tab === "coach"} onClick={() => setTab("coach")}>
+            Coach{Object.keys(state.coach).length ? ` (${Object.keys(state.coach).length})` : ""}
+          </button>
           <button aria-pressed={tab === "producer"} onClick={() => setTab("producer")}>
             Producer
           </button>
@@ -140,15 +144,26 @@ export default function App() {
               focus={prefs.focus}
               analyst={prefs.audience === "analyst"}
             />
+            {prefs.focus === "all" && (
+              <StoryChart history={state.history} events={state.events} overlays={state.overlays} meta={meta} compact />
+            )}
           </div>
           <aside className="stage-side" aria-label="Insights">
+            <AskPundit prefs={prefs} onTerm={setTerm} enabled={!!meta} />
             {prefs.playerCam && <PlayerCard id={prefs.playerCam} />}
             <Feed overlays={state.overlays} meta={meta} prefs={prefs} onTerm={setTerm} />
           </aside>
         </div>
       )}
+      {tab === "coach" && <CoachView coach={state.coach} meta={meta} prefs={prefs} running={state.running} />}
       {tab === "producer" && <Producer trace={state.trace} />}
-      {tab === "recap" && state.recap && <RecapView recap={state.recap} />}
+      {tab === "recap" && state.recap && (
+        <RecapView
+          recap={state.recap}
+          language={prefs.language}
+          chart={<StoryChart history={state.history} events={state.events} overlays={state.overlays} meta={meta} />}
+        />
+      )}
       {term && <GlossaryDialog term={term} onClose={() => setTerm(null)} />}
       <footer className="foot">Synthetic data. Clubs and players are fictional.</footer>
     </main>

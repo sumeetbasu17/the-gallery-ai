@@ -166,8 +166,10 @@ def win_probability(home_goals: int, away_goals: int, minute: int, home_xg: floa
     remaining = max(0.0, 90 - minute) / 90.0
     played = max(minute, 10) / 90.0
     prior = 1.35
-    lam_h = remaining * (0.6 * prior + 0.4 * home_xg / played)
-    lam_a = remaining * (0.6 * prior + 0.4 * away_xg / played)
+    # trust this match's xG rate more as the sample grows (avoids wild swings in the first minutes)
+    w = 0.4 * min(1.0, minute / 45)
+    lam_h = remaining * ((1 - w) * prior + w * home_xg / played)
+    lam_a = remaining * ((1 - w) * prior + w * away_xg / played)
 
     def pmf(k, lam):
         return math.exp(-lam) * lam ** k / math.factorial(k)

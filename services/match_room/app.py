@@ -104,6 +104,48 @@ async def stop():
     return {"stopped": True}
 
 
+class AskRequest(BaseModel):
+    question: str
+    language: str = "en"
+
+
+@app.post("/api/ask")
+async def ask(req: AskRequest):
+    """Ask the pundit: a viewer question answered live from the match tools, fact-checked."""
+    if room.crew is None or room.state.meta is None:
+        return JSONResponse({"error": "Kick off a match first."}, status_code=409)
+    lang = req.language if req.language in settings.languages else "en"
+    return await room.crew.ask(req.question, lang)
+
+
+@app.post("/api/coach/{side}")
+async def coach(side: str):
+    """Coach report for one club ('home' or 'away'), on demand."""
+    if side not in ("home", "away"):
+        return JSONResponse({"error": "side must be home or away"}, status_code=400)
+    if room.crew is None or room.state.meta is None:
+        return JSONResponse({"error": "Kick off a match first."}, status_code=409)
+    return await room.crew.coach_report(side)
+
+
+class SpeechRequest(BaseModel):
+    text: str
+    language: str = "en"
+
+
+@app.post("/api/speech")
+async def speech(req: SpeechRequest):
+    """Natural-voice audio via Azure AI Speech (keyless). 204 means: use the browser voice instead."""
+    from fastapi import Response
+
+    from .speech import synthesize
+
+    audio = await synthesize(req.text[:3000], req.language)
+    if audio is None:
+        return Response(status_code=204)
+    return Response(content=audio, media_type="audio/mpeg")
+
+
 @app.get("/api/history")
 async def history(limit: int = 50):
     """Insights that aired in recent matches (Cosmos DB), for studio review."""

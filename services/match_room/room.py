@@ -40,6 +40,7 @@ class MatchRoom:
         self.task: Optional[asyncio.Task] = None
         self.status: dict[str, Any] = {"running": False, "seed": None, "speed": None, "clock": 0.0}
         self.trace_log: list[dict] = []
+        self.history: list[dict] = []   # win probability + field tilt over time, for the match story chart
         self.scenario: Optional[dict] = None
         self.frames_sent = 0
         self._last_frame_sent = 0.0
@@ -78,6 +79,7 @@ class MatchRoom:
                 "teams": s.team_summary() if s.meta else {}, "meters": s.meters() if s.meta else {},
                 "overlays": overlays, "recap": self.crew.board.recap if self.crew else None,
                 "crew_stats": self.crew.board.stats if self.crew else {}, "trace": self.trace_log[-60:],
+                "history": self.history, "coach": self.crew.board.coach_reports if self.crew else {},
                 "languages": self.settings.languages}
 
     # --------------------------------------------------------------- run
@@ -105,8 +107,12 @@ class MatchRoom:
             self.trace_log.append(step)
             await self.broadcast("trace", step)
 
+        async def on_coach(doc: dict) -> None:
+            await self.broadcast("coach", doc)
+
         self.crew = Crew(self.settings, self.state, tools=self.analyst_tools, on_overlay=on_overlay,
-                         on_trace=on_trace)
+                         on_trace=on_trace, on_coach=on_coach)
+        self.history = []
         self.status = {"running": True, "seed": seed, "speed": speed, "clock": 0.0, "source": source}
         if self.scenario:
             home, away = teams_from_scenario(self.scenario)
@@ -155,10 +161,18 @@ class MatchRoom:
                                                "score": self.state.score})
             if fr.second - self._last_meter >= METER_EVERY_MATCH_S:
                 self._last_meter = fr.second
-                await self.broadcast("meters", {"minute": self.state.minute, "meters": self.state.meters(),
-                                                "teams": self.state.team_summary(),
-                                                "win_probability": self.crew.match_tools.win_probability()
-                                                if self.crew else None})
+                meters = self.state.meters()
+                wp = self.crew.match_tools.win_probability() if self.crew else None
+                point = None
+                if wp and self.state.meta:
+                    h, a = self.state.team_name["home"], self.state.team_name["away"]
+                    point = {"minute": self.state.minute, "second": fr.second, "home": wp[h], "draw": wp["draw"],
+                             "away": wp[a], "tilt_home": meters["control_vs_chaos"]["field_tilt_pct"].get(h, 50),
+                             "control": meters["control_vs_chaos"]["control"]}
+                    self.history.append(point)
+                await self.broadcast("meters", {"minute": self.state.minute, "meters": meters,
+                                                "teams": self.state.team_summary(), "win_probability": wp,
+                                                "point": point})
 
     async def _run_local(self, seed: int, speed: float) -> None:
         home, away = teams_from_scenario(self.scenario) if self.scenario else (riverside_athletic(), northgate_united())

@@ -69,6 +69,7 @@ export interface Overlay {
   side?: Side | null;
   evidence: Evidence[];
   verified: boolean;
+  check_level?: "full" | "numbers" | "template";
   produced_by: string[];
   glossary_terms: string[];
   minute: number;
@@ -125,6 +126,7 @@ export interface TraceStep {
 }
 
 export interface Recap {
+  translations?: Record<string, { headline: string; paragraphs: string[] }>;
   recap: {
     headline: string;
     paragraphs: string[];
@@ -149,4 +151,36 @@ export interface Prefs {
   language: string;
   playerCam: string;
   focus: Focus;
+}
+
+export interface HistoryPoint {
+  minute: number;
+  second: number;
+  home: number;
+  draw: number;
+  away: number;
+  tilt_home: number;
+  control: number;
+}
+
+export interface CoachDoc {
+  side: Side;
+  club: string;
+  minute: number;
+  verified: boolean;
+  report: {
+    headline: string;
+    working: string[];
+    not_working: string[];
+    changes: { change: string; why: string }[];
+  } | null;
+}
+
+export interface PunditReply {
+  question: string;
+  answer: string;
+  verified: boolean;
+  on_topic?: boolean;
+  terms: string[];
+  minute?: number;
 }

@@ -86,12 +86,18 @@ GLOSSARY: dict[str, dict[str, str]] = {
 }
 
 
+_ALIASES = {"defensive line": "low block", "press": "pressing", "high press": "pressing",
+            "narrow": "playing narrow", "wide": "playing wide", "expected goals": "xg",
+            "momentum": "field tilt", "chaotic": "control vs chaos", "rhythm": "tempo"}
+
+
 def lookup(term: str) -> dict | None:
     key = term.strip().lower()
+    key = _ALIASES.get(key, key)
     if key in GLOSSARY:
         return {"term": key, **GLOSSARY[key]}
     for k, v in GLOSSARY.items():
-        if key in k or k in key:
+        if len(key) >= 4 and (key in k or k in key):
             return {"term": k, **v}
     return None
 

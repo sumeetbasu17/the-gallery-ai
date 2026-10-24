@@ -31,12 +31,23 @@ from agent_framework import Agent
 
 from gallery_schema.overlays import AgentStep, Overlay, OverlayKind, Variant
 from mcp_server import MatchTools
-from mcp_server.glossary import find_terms
+from mcp_server.glossary import find_terms, lookup
 from stats_engine import MatchState, Signal, SignalType
 
 from . import fallback, prompts
 from .config import Settings, make_client
-from .contracts import AnalystNote, DirectorPlan, FanVersions, JudgeVerdict, Recap, SemanticCheck, Story
+from .contracts import (
+    AnalystNote,
+    CoachReport,
+    DirectorPlan,
+    FanVersions,
+    JudgeVerdict,
+    PunditAnswer,
+    Recap,
+    RecapTranslation,
+    SemanticCheck,
+    Story,
+)
 from .factcheck import allowed_numbers, check_story
 
 log = logging.getLogger("gallery.crew")
@@ -79,6 +90,7 @@ class Board:
     pending: list[Signal] = field(default_factory=list)
     last_air_by_type: dict[str, float] = field(default_factory=dict)
     win_prob: list[dict] = field(default_factory=list)
+    coach_reports: dict[str, dict] = field(default_factory=dict)  # side -> report
     overlays: list[Overlay] = field(default_factory=list)
     recap: Optional[dict] = None
     stats: dict[str, int] = field(default_factory=lambda: {"llm_calls": 0, "rejections": 0, "fallbacks": 0,
@@ -89,11 +101,22 @@ class Board:
                    {t.value for t in MANDATORY})
 
 
+def glossary_terms(suggested: list[str], text: str, limit: int = 3) -> list[str]:
+    """Only terms the Jargon Decoder can actually explain, de-duplicated, at most `limit`."""
+    out: list[str] = []
+    for t in [*suggested, *find_terms(text)]:
+        hit = lookup(t)
+        if hit and hit["term"] not in out:
+            out.append(hit["term"])
+    return out[:limit]
+
+
 class Crew:
     def __init__(self, settings: Settings, state: MatchState, tools: Optional[list] = None,
                  client_factory: Optional[Callable[[str], Any]] = None,
                  on_overlay: Optional[Callable[[Overlay], Awaitable[None] | None]] = None,
-                 on_trace: Optional[Callable[[dict], Awaitable[None] | None]] = None):
+                 on_trace: Optional[Callable[[dict], Awaitable[None] | None]] = None,
+                 on_coach: Optional[Callable[[dict], Awaitable[None] | None]] = None):
         self.settings = settings
         self.state = state
         self.board = Board()
@@ -101,6 +124,7 @@ class Crew:
         self.tools = tools if tools is not None else self.match_tools.all()
         self.on_overlay = on_overlay
         self.on_trace = on_trace
+        self.on_coach = on_coach
         factory = client_factory or (lambda model: make_client(settings, model))
         fast, creative = factory(settings.fast_model), factory(settings.creative_model)
         self.director = Agent(fast, prompts.DIRECTOR, name="match_director")
@@ -110,6 +134,9 @@ class Crew:
         self.factchecker = Agent(fast, prompts.FACT_CHECKER, name="fact_checker")
         self.fan_producer = Agent(fast, prompts.FAN_PRODUCER, name="fan_producer")
         self.recap_writer = Agent(creative, prompts.RECAP, name="recap_writer")
+        self.pundit = Agent(fast, prompts.PUNDIT, name="pundit", tools=self.tools)
+        self.coach = Agent(creative, prompts.COACH, name="coach", tools=self.tools)
+        self.translator = Agent(fast, prompts.TRANSLATOR, name="translator")
         self._sem = asyncio.Semaphore(settings.max_parallel_moments)
         self._facts: dict[str, dict[str, Any]] = {}
         self._tasks: set[asyncio.Task] = set()
@@ -307,6 +334,7 @@ class Crew:
 
         story: Optional[Story] = None
         status = "ok"
+        numbers_ok_draft: Optional[Story] = None  # passed the deterministic check, failed only the LLM check
         for attempt in range(2):
             draft, _ = await self._call(self.storyteller, story_payload, Story, trace,
                                         "write the line" if attempt == 0 else "rewrite after fact-check")
@@ -315,6 +343,8 @@ class Crew:
             text = f"{draft.headline}. {draft.body}"
             det = check_story(text, allowed, roster, s.summary, extra_names=teams)
             problems = list(det.problems)
+            if det.ok:
+                numbers_ok_draft = draft
             if det.ok and self.settings.semantic_check and (s.type in TACTICAL or s.type in KEY):
                 sem, _ = await self._call(self.factchecker, {
                     "story": draft.model_dump(), "evidence": sig, "facts": facts,
@@ -328,9 +358,16 @@ class Crew:
                 story = draft
                 break
             board.stats["rejections"] += 1
+            log.info("fact-check rejected %s at %s': %s", s.type.value, s.minute, "; ".join(problems))
             await self._step(trace, "fact_checker", "verify numbers, names, direction", "rejected",
                              "; ".join(problems)[:240])
             story_payload["feedback"] = problems
+        if story is None and numbers_ok_draft is not None:
+            # Every number, name and direction checked out; only the stricter wording review objected.
+            story = numbers_ok_draft
+            status = "numbers"
+            await self._step(trace, "fact_checker", "air with numbers verified", "retry",
+                             "numbers, names and direction verified; wording review not passed")
         if story is None:
             story = fallback.story(s)
             status = "fallback"
@@ -338,12 +375,13 @@ class Crew:
             await self._step(trace, "storyteller", "template fallback", "fallback")
 
         variants = await self._personalise(s, story, allowed, roster, teams, trace)
-        terms = sorted(set((note.glossary_terms if note else [])) | set(find_terms(story.body + " " + s.summary)))
+        terms = glossary_terms((note.glossary_terms if note else []), story.body + " " + s.summary)
         ov = Overlay(
             overlay_id=uuid.uuid4().hex[:12], match_id=s.match_id, kind=KIND.get(s.type, OverlayKind.KEY_MOMENT),
             show_at_second=s.second, duration_s=12.0 if s.type in MANDATORY else 10.0,
             priority=verdict.importance if verdict else s.importance, headline=story.headline, body=story.body,
             player_id=s.player_id, side=s.side, evidence=s.evidence, verified=status == "ok",
+            check_level={"ok": "full", "numbers": "numbers"}.get(status, "template"),
             produced_by=list(dict.fromkeys(step.agent for step in trace)), glossary_terms=terms, minute=s.minute,
             signal_id=s.signal_id, importance_reason=verdict.stakes if verdict else None, variants=variants,
             trace=trace, win_probability=facts["win_probability"])
@@ -353,6 +391,9 @@ class Crew:
         await self._publish(ov)
         if s.type == SignalType.FULL_TIME:
             await self.write_recap()
+        elif s.type == SignalType.HALF_TIME:
+            for side in ("home", "away"):
+                self._spawn(self.coach_report(side))
         return ov
 
     async def _personalise(self, s: Signal, story: Story, allowed: set[float], roster: set[str],
@@ -409,4 +450,98 @@ class Crew:
                           player_of_the_match_reason="Highest average pass difficulty in the match.")
             trace.append(AgentStep(agent="storyteller", action="template recap", status="fallback"))
         self.board.recap = {"recap": recap.model_dump(), "facts": facts, "trace": [t.model_dump() for t in trace]}
+        await self.translate_recap()
         return self.board.recap
+
+    # ------------------------------------------------------------ ask the pundit
+    async def ask(self, question: str, language: str = "en") -> dict:
+        """Answer a viewer's question about the live match, grounded in MCP tool results."""
+        question = " ".join((question or "").split())[:300]
+        trace: list[AgentStep] = []
+        if len(question) < 3:
+            return {"answer": "Ask me anything about this match.", "verified": False, "trace": []}
+        facts = {"snapshot": self.match_tools.get_match_snapshot(), "meters": self.match_tools.get_meters(5),
+                 "win_probability": self.match_tools.win_probability()}
+        payload: dict[str, Any] = {"QUESTION": question, "LANGUAGE": language, "minute": self.state.minute,
+                                   "facts": facts}
+        roster, teams = self.roster(), set(self.state.team_name.values())
+        result: Optional[PunditAnswer] = None
+        verified = False
+        for attempt in range(2):
+            ans, tool_results = await self._call(self.pundit, payload, PunditAnswer, trace,
+                                                 "answer viewer" if attempt == 0 else "re-answer after fact-check")
+            if ans is None:
+                break
+            result = ans
+            if not ans.on_topic:
+                verified = True
+                break
+            allowed = allowed_numbers(facts, tool_results, ans.key_numbers)
+            chk = check_story(ans.answer, allowed, roster, extra_names=teams)
+            if chk.ok:
+                await self._step(trace, "fact_checker", "verify answer", note="approved")
+                verified = True
+                break
+            await self._step(trace, "fact_checker", "verify answer", "rejected", "; ".join(chk.problems)[:200])
+            payload["feedback"] = chk.problems
+        if result is None:
+            m = facts["meters"]["control_vs_chaos"]
+            text = (f"At {self.state.minute}' it is {' '.join(f'{k} {v}' for k, v in facts['snapshot']['score'].items())}."
+                    f" The game is {m['label']} right now.")
+            return {"answer": text, "verified": False, "terms": [], "trace": [t.model_dump() for t in trace]}
+        return {"answer": result.answer, "verified": verified, "on_topic": result.on_topic,
+                "terms": glossary_terms(result.glossary_terms, result.answer),
+                "numbers": [k.model_dump() for k in result.key_numbers], "minute": self.state.minute,
+                "trace": [t.model_dump() for t in trace]}
+
+    # ------------------------------------------------------------ coach report
+    async def coach_report(self, side: str) -> dict:
+        """Half-time report for one club's staff: what works, what doesn't, three changes."""
+        team = self.state.team_name.get(side, side)
+        trace: list[AgentStep] = []
+        facts = {"club": team, "side": side, "snapshot": self.match_tools.get_match_snapshot(),
+                 "meters": self.match_tools.get_meters(15), "own_shape": self.match_tools.get_team_shape(side, 10),
+                 "opponent_shape": self.match_tools.get_team_shape("away" if side == "home" else "home", 10),
+                 "top_passers": self.match_tools.get_top_performers("pass_difficulty", 3)}
+        payload: dict[str, Any] = {"CLUB": team, "minute": self.state.minute, "facts": facts}
+        roster, teams = self.roster(), set(self.state.team_name.values())
+        report: Optional[CoachReport] = None
+        verified = False
+        for attempt in range(2):
+            rep, tool_results = await self._call(self.coach, payload, CoachReport, trace,
+                                                 f"half-time report for {team}")
+            if rep is None:
+                break
+            report = rep
+            text = " ".join([rep.headline, *rep.working, *rep.not_working,
+                             *[f"{c.change} {c.why}" for c in rep.changes]])
+            chk = check_story(text, allowed_numbers(facts, tool_results), roster, extra_names=teams)
+            if chk.ok:
+                await self._step(trace, "fact_checker", "verify coach report", note="approved")
+                verified = True
+                break
+            await self._step(trace, "fact_checker", "verify coach report", "rejected", "; ".join(chk.problems)[:200])
+            payload["feedback"] = chk.problems
+        doc = {"side": side, "club": team, "minute": self.state.minute, "verified": verified,
+               "report": report.model_dump() if report else None, "facts": facts,
+               "trace": [t.model_dump() for t in trace]}
+        self.board.coach_reports[side] = doc
+        await self._emit(self.on_coach, doc)
+        return doc
+
+    # ------------------------------------------------------------ recap in every language
+    async def translate_recap(self) -> None:
+        rec = (self.board.recap or {}).get("recap")
+        if not rec:
+            return
+        out: dict[str, dict] = {"en": {"headline": rec["headline"], "paragraphs": rec["paragraphs"]}}
+        trace: list[AgentStep] = []
+
+        async def one(lang: str):
+            tr, _ = await self._call(self.translator, {"LANGUAGE": lang, "RECAP": out["en"]}, RecapTranslation,
+                                     trace, f"translate recap ({lang})")
+            if tr is not None:
+                out[lang] = tr.model_dump()
+
+        await asyncio.gather(*(one(lang) for lang in self.settings.languages if lang != "en"))
+        self.board.recap["translations"] = out

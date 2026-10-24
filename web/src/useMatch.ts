@@ -1,5 +1,16 @@
 import { useEffect, useReducer, useRef } from "react";
-import type { Frame, MatchEvent, Metadata, Meters, Overlay, Recap, TeamSummary, TraceStep } from "./types";
+import type {
+  CoachDoc,
+  Frame,
+  HistoryPoint,
+  MatchEvent,
+  Metadata,
+  Meters,
+  Overlay,
+  Recap,
+  TeamSummary,
+  TraceStep,
+} from "./types";
 
 export interface MatchState {
   connected: boolean;
@@ -18,6 +29,8 @@ export interface MatchState {
   crewStats: Record<string, number>;
   languages: string[];
   scenario: { title?: string; storyline?: string } | null;
+  history: HistoryPoint[];
+  coach: Record<string, CoachDoc>;
 }
 
 const initial: MatchState = {
@@ -37,6 +50,8 @@ const initial: MatchState = {
   crewStats: {},
   languages: ["en"],
   scenario: null,
+  history: [],
+  coach: {},
 };
 
 type Action =
@@ -54,6 +69,8 @@ function reducer(state: MatchState, action: Action): MatchState {
         ...state,
         running: data.status?.running ?? false,
         scenario: data.status?.scenario ?? null,
+        history: data.history ?? [],
+        coach: data.coach ?? {},
         metadata: data.metadata,
         score: data.score ?? state.score,
         minute: data.minute ?? 0,
@@ -70,7 +87,15 @@ function reducer(state: MatchState, action: Action): MatchState {
     case "frame":
       return { ...state, frame: data, minute: data.minute, score: data.score };
     case "meters":
-      return { ...state, meters: data.meters, teams: data.teams, winProb: data.win_probability ?? state.winProb };
+      return {
+        ...state,
+        meters: data.meters,
+        teams: data.teams,
+        winProb: data.win_probability ?? state.winProb,
+        history: data.point ? [...state.history, data.point] : state.history,
+      };
+    case "coach":
+      return { ...state, coach: { ...state.coach, [data.side]: data } };
     case "overlay":
       return { ...state, overlays: [...state.overlays.slice(-120), data] };
     case "trace":

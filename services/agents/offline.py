@@ -23,7 +23,8 @@ from agent_framework import (
 
 _ROLE = re.compile(r"\[role:(\w+)\]")
 
-TOOL_PLAN = {"analyst": ("get_team_shape", "team"), "judge": ("win_probability", None)}
+TOOL_PLAN = {"analyst": ("get_team_shape", "team"), "judge": ("win_probability", None),
+             "pundit": ("get_meters", None), "coach": ("get_meters", None)}
 
 PHRASES = {
     "hi": {"Tactical shift": "रणनीतिक बदलाव", "GOAL!": "गोल!", "Momentum swing": "मोमेंटम बदला"},
@@ -134,3 +135,25 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
 
     def _scenario(self, d, _):
         return {}
+
+    def _pundit(self, d, _):
+        facts = d.get("facts", {})
+        score = " ".join(f"{k} {v}" for k, v in facts.get("snapshot", {}).get("score", {}).items())
+        label = facts.get("meters", {}).get("control_vs_chaos", {}).get("label", "contested")
+        return {"answer": f"At {d.get('minute', 0)}' the score is {score}, and the game is {label} right now.",
+                "key_numbers": [], "glossary_terms": ["control vs chaos"], "on_topic": True}
+
+    def _coach(self, d, _):
+        club = d.get("CLUB", "the team")
+        shape = d.get("facts", {}).get("own_shape", {}).get("recent") or {}
+        line = shape.get("defensive_line_m", 0)
+        return {"headline": f"{club}: half-time priorities",
+                "working": [f"Defensive line held at {line} m from goal."],
+                "not_working": ["Too many turnovers in midfield."],
+                "changes": [{"change": "Press higher on the opponent's first pass.", "why": "Their line is deep."},
+                            {"change": "Switch play to the weak side earlier.", "why": "Space opens wide."},
+                            {"change": "Keep a midfielder back in rest defence.", "why": "Protects against counters."}]}
+
+    def _translator(self, d, _):
+        rec = d.get("RECAP", {})
+        return {"headline": rec.get("headline", ""), "paragraphs": rec.get("paragraphs", [])}

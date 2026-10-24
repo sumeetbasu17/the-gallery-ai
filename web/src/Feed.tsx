@@ -67,11 +67,7 @@ function Insight({ o, meta, prefs, onTerm }: { o: Overlay; meta: Metadata | null
         {v.body && <p>{v.body}</p>}
         <div className="insight-meta">
           {team && <span className="team-chip">{team.short_name}</span>}
-          {o.verified ? (
-            <span className="checked" title="Every number and name was checked against the stats engine">Fact-checked</span>
-          ) : (
-            <span className="unchecked" title="A model was unavailable, so a plain template was used">Template</span>
-          )}
+          <Badge o={o} />
           {prefs.audience === "casual" &&
             o.glossary_terms.map((t) => (
               <button key={t} className="term" onClick={() => onTerm(t)}>
@@ -158,4 +154,25 @@ function dedupe(trace: Overlay["trace"]) {
     out.push({ ...s });
   }
   return out;
+}
+
+function Badge({ o }: { o: Overlay }) {
+  const level = o.check_level ?? (o.verified ? "full" : "template");
+  if (level === "full")
+    return (
+      <span className="checked" title="Numbers, names and wording were checked against the stats engine">
+        Fact-checked
+      </span>
+    );
+  if (level === "numbers")
+    return (
+      <span className="numbers-checked" title="Every number, name and direction was verified; the wording review flagged a detail">
+        Numbers checked
+      </span>
+    );
+  return (
+    <span className="unchecked" title="The story didn't pass checks, so a plain factual template aired">
+      Template
+    </span>
+  );
 }
