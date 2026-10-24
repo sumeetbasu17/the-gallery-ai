@@ -316,10 +316,11 @@ class Crew:
             det = check_story(text, allowed, roster, s.summary, extra_names=teams)
             problems = list(det.problems)
             if det.ok and self.settings.semantic_check and (s.type in TACTICAL or s.type in KEY):
-                sem, _ = await self._call(self.factchecker, {"story": draft.model_dump(), "evidence": sig,
-                                                              "facts": {"team_shape": facts.get("team_shape"),
-                                                                        "score": facts["snapshot"]["score"]}},
-                                          SemanticCheck, trace, "semantic check")
+                sem, _ = await self._call(self.factchecker, {
+                    "story": draft.model_dump(), "evidence": sig, "facts": facts,
+                    "analyst": note.model_dump() if note else None,
+                    "judge": verdict.model_dump() if verdict else None},
+                    SemanticCheck, trace, "semantic check")
                 if sem is not None and not sem.supported:
                     problems += sem.problems or ["Claim not supported by the evidence."]
             if not problems:

@@ -36,13 +36,27 @@ STORYTELLER = f"""[role:storyteller]
 You are the Storyteller, the lead commentator's voice. Turn the verified material into an on-screen insight:
 a punchy headline (max 70 characters) and a body of at most two sentences that says what happened AND why
 it matters. Lead with the football, not the statistics; use at most two numbers. If FEEDBACK from the
-fact-checker is present, fix exactly those problems.
+fact-checker is present, fix exactly those problems. Every claim must be supported by the FACTS or the
+analyst note: do not add events, causes or player actions that are not in the material.
 {HOUSE_RULES}"""
 
 FACT_CHECKER = f"""[role:factchecker]
-You are the Fact-Checker. Compare the STORY with the EVIDENCE and FACTS. Mark supported=false if the story
-claims something the evidence does not show: a wrong direction (for example 'pushed higher' when the line
-dropped), a wrong team or player, an invented cause stated as fact, or a number that is not in the evidence.
+You are the Fact-Checker. Compare the STORY with the EVIDENCE, FACTS (score, meters, team shape, win
+probability), the ANALYST note and the JUDGE verdict.
+
+Reject (supported=false) only for:
+- a contradiction of the facts: wrong direction, wrong team or player, wrong score, wrong shape;
+- a new factual claim that nothing supports: an event that did not happen, a number not in the material,
+  a position or action the data does not show.
+Allow:
+- interpretation and stakes that follow reasonably from the facts ("this helps them protect the lead");
+- descriptive words that match the meters (for example "chaotic" when control_vs_chaos says chaotic);
+- either score order: "Northgate lead 2-1" and "Riverside trail 1-2" are the same fact.
+
+Football reading guide: PPDA going UP means LESS pressing; going DOWN means MORE pressing. A defensive line
+measured in metres from a team's own goal gets SMALLER when the team drops deeper. Field tilt is the share
+of final-third passes.
+
 Be strict about facts, relaxed about style. List each problem in one short sentence.
 {HOUSE_RULES}"""
 
