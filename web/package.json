@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:8001": "GALLERY_API_PORT=8001 vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },

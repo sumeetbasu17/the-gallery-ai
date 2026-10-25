@@ -149,11 +149,20 @@ export function useMatch() {
 
   const start = async (seed: number, speed: number, source: "local" | "eventhub" = "local", brief = "") => {
     dispatch({ type: "reset" });
-    await fetch("/api/match/start", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ seed, speed, source, brief }),
-    });
+    try {
+      const r = await fetch("/api/match/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ seed, speed, source, brief }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch (e) {
+      dispatch({ type: "message", msg: { type: "status", data: { running: false } } });
+      window.alert(
+        `Couldn't reach the match room (${e instanceof Error ? e.message : e}). ` +
+          "Check the server terminal is running and that the web app points at its port (GALLERY_API_PORT).",
+      );
+    }
   };
 
   return { state, start };
