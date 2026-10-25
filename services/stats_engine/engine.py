@@ -56,6 +56,9 @@ class PlayerStats:
     distance_m: float = 0.0
     top_speed_kmh: float = 0.0
     sprints: int = 0
+    in_sprint: bool = False
+    fast_s: int = 0
+    last_sprint_start_s: float = -1e9
     last_sprint_signal_s: float = -1e9
     last_xy: Optional[tuple[float, float]] = None
     last_speed: float = 0.0
@@ -282,7 +285,14 @@ class MatchState:
             new_best = p.speed_kmh > ps.top_speed_kmh + 0.5
             if p.speed_kmh > ps.top_speed_kmh:
                 ps.top_speed_kmh = p.speed_kmh
-            if p.speed_kmh >= M.SPRINT_KMH and ps.last_speed < M.SPRINT_KMH:
+            # a sprint is a run above SPRINT_KMH; it ends only once the player eases off (hysteresis),
+            # so noise around the threshold is not counted as dozens of sprints
+            ps.fast_s = ps.fast_s + 1 if p.speed_kmh >= M.SPRINT_KMH else 0
+            if ps.in_sprint and p.speed_kmh < M.SPRINT_END_KMH:
+                ps.in_sprint = False
+            elif not ps.in_sprint and ps.fast_s >= M.SPRINT_MIN_S and fr.second - ps.last_sprint_start_s >= 8:
+                ps.in_sprint = True
+                ps.last_sprint_start_s = fr.second
                 ps.sprints += 1
             ps.last_speed = p.speed_kmh
             if p.speed_kmh >= M.TOP_SPEED_TAG_KMH and new_best and fr.second - ps.last_sprint_signal_s > 900:

@@ -265,6 +265,7 @@ class MatchRoom:
             "coach": board.coach_reports if board else {}, "history": self.history, "events": self.events_log,
             "crew_stats": board.stats if board else {}, "agents": agents, "trace": self.trace_log[-300:],
             "languages": self.settings.languages,
+            "players": {pid: s.player_summary(pid) for pid in s.players},
         }
 
     # ------------------------------------------------------------ replay

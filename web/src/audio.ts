@@ -7,36 +7,56 @@ export type VoiceSource = "azure" | "browser" | "none";
 
 let current: HTMLAudioElement | null = null;
 let generation = 0;
-const listeners = new Set<(speaking: boolean) => void>();
+/** Listeners hear whether anything is playing and which text it is, so each button knows if it's "its" audio. */
+type Listener = (speaking: boolean, text: string | null) => void;
+const listeners = new Set<Listener>();
 
-function notify(speaking: boolean) {
-  listeners.forEach((fn) => fn(speaking));
+function notify(speaking: boolean, text: string | null = null) {
+  listeners.forEach((fn) => fn(speaking, speaking ? text : null));
 }
 
-export function onSpeaking(fn: (speaking: boolean) => void) {
+export function onSpeaking(fn: Listener) {
   listeners.add(fn);
   return () => {
     listeners.delete(fn);
   };
 }
 
-export function stopSpeaking() {
+function halt() {
   generation += 1;
   if (current) {
     current.pause();
     current = null;
   }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+}
+
+export function stopSpeaking() {
+  halt();
   notify(false);
+}
+
+/** Browsers cut long utterances off (Chrome stops after ~15 s), so speak sentence-sized chunks. */
+function chunks(text: string, max = 180): string[] {
+  const out: string[] = [];
+  let cur = "";
+  for (const part of text.split(/(?<=[.!?।])\s+/)) {
+    if ((cur + " " + part).trim().length > max && cur) {
+      out.push(cur.trim());
+      cur = part;
+    } else cur = `${cur} ${part}`;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
 }
 
 const LOCALES: Record<string, string> = { en: "en-GB", hi: "hi-IN", es: "es-ES" };
 
 /** Speak `text`; resolves with how it was voiced once playback has finished (or was stopped). */
 export async function say(text: string, language: string, onStart?: (how: VoiceSource) => void): Promise<VoiceSource> {
-  stopSpeaking();
+  halt(); // stop whatever was playing, without telling listeners "silence" (we're about to speak)
   const mine = generation;
-  notify(true);
+  notify(true, text);
   try {
     const r = await fetch("/api/speech", {
       method: "POST",
@@ -66,16 +86,22 @@ export async function say(text: string, language: string, onStart?: (how: VoiceS
     notify(false);
     return "none";
   }
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = LOCALES[language] ?? "en-GB";
-  u.rate = 1.02;
-  const voice = window.speechSynthesis.getVoices().find((v) => v.lang.replace("_", "-").startsWith(u.lang.slice(0, 2)));
-  if (voice) u.voice = voice;
+  const lang = LOCALES[language] ?? "en-GB";
+  const voices = window.speechSynthesis.getVoices();
+  const voice =
+    voices.find((v) => v.lang.replace("_", "-") === lang) ?? voices.find((v) => v.lang.startsWith(lang.slice(0, 2)));
   onStart?.("browser");
-  await new Promise<void>((resolve) => {
-    u.onend = u.onerror = () => resolve();
-    window.speechSynthesis.speak(u);
-  });
+  for (const piece of chunks(text)) {
+    if (mine !== generation) break;
+    const u = new SpeechSynthesisUtterance(piece);
+    u.lang = lang;
+    u.rate = 1.02;
+    if (voice) u.voice = voice;
+    await new Promise<void>((resolve) => {
+      u.onend = u.onerror = () => resolve();
+      window.speechSynthesis.speak(u);
+    });
+  }
   if (mine === generation) notify(false);
   return "browser";
 }

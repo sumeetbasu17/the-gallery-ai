@@ -13,7 +13,7 @@ const SUGGESTIONS: Record<string, string[]> = {
 /** A small play/stop button for any text, in the viewer's language. */
 export function ListenButton({ text, language, label = "Listen" }: { text: string; language: string; label?: string }) {
   const [mine, setMine] = useState(false);
-  useEffect(() => onSpeaking((speaking) => !speaking && setMine(false)), []);
+  useEffect(() => onSpeaking((speaking, playing) => setMine(speaking && playing === text)), [text]);
   return (
     <button
       type="button"
@@ -26,7 +26,6 @@ export function ListenButton({ text, language, label = "Listen" }: { text: strin
           return;
         }
         say(text, language);
-        setMine(true);
       }}
     >
       {mine ? "■ Stop" : `▶ ${label}`}

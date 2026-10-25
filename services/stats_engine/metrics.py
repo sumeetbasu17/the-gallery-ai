@@ -13,6 +13,8 @@ HIGH_BLOCK_MIN_M = 36.0
 NARROW_MAX_M = 30.0       # out-of-possession team width
 WIDE_MIN_M = 38.0
 SPRINT_KMH = 25.0
+SPRINT_MIN_S = 2  # seconds above SPRINT_KMH before a run counts as a sprint
+SPRINT_END_KMH = 19.0  # a sprint ends when the player drops below this
 TOP_SPEED_TAG_KMH = 33.0
 POWER_SHOT_KMH = 100.0
 

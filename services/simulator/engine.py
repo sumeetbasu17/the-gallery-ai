@@ -41,6 +41,7 @@ from .formations import FORMATIONS
 
 GOAL_WIDTH = 7.32
 MAX_RUN_MS = 9.0  # ~32 km/h top sprint speed
+EASE = 0.45      # share of the gap to the target position a player closes each second
 
 _BLOCK_LINE_OUT = {"high": 40.0, "mid": 30.0, "low": 18.0}
 _BLOCK_SPAN_OUT = {"high": 42.0, "mid": 38.0, "low": 30.0}
@@ -454,6 +455,11 @@ class MatchSimulator:
                     prev = current[side].get(pid, tgt)
                     dx, dy = tgt[0] - prev[0], tgt[1] - prev[1]
                     step = math.hypot(dx, dy)
+                    # players close part of the gap each second (they react, they don't teleport), so they
+                    # only reach sprint speed when they really have ground to make up
+                    if step > 1.0:
+                        dx, dy = dx * EASE, dy * EASE
+                        step *= EASE
                     cap = MAX_RUN_MS * float(self.rng.uniform(0.85, 1.0))
                     if step > cap:
                         dx, dy = dx * cap / step, dy * cap / step

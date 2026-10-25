@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Feed } from "./Feed";
 import { Meters } from "./Meters";
-import { ArchiveList, Controls, GlossaryDialog, Kickoff, PlayerCard, Producer, RecapView } from "./Panels";
+import {
+  ArchiveList,
+  Controls,
+  GlossaryDialog,
+  Kickoff,
+  PlayerCard,
+  Producer,
+  RecapView,
+} from "./Panels";
 import { AskPundit, CoachView, StoryChart } from "./Extras";
 import { Pitch, type PlayerStats } from "./Pitch";
 import { HighlightsReel, useReplay } from "./Replay";
@@ -23,7 +31,10 @@ const LOWER_THIRD_MS = 9000;
 
 function loadPrefs(): Prefs {
   try {
-    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem("gallery-prefs") ?? "{}") };
+    return {
+      ...DEFAULT_PREFS,
+      ...JSON.parse(localStorage.getItem("gallery-prefs") ?? "{}"),
+    };
   } catch {
     return DEFAULT_PREFS;
   }
@@ -63,7 +74,13 @@ export default function App() {
   const timers = useRef<{ lt?: number; co?: number }>({});
   const viewing = state.viewing;
   const replay = useReplay(state.archiveId, !!viewing);
-  const camStats = usePlayerStats(prefs.playerCam, !viewing && (state.running || !!state.frame));
+  const liveStats = usePlayerStats(
+    prefs.playerCam,
+    !viewing && (state.running || !!state.frame),
+  );
+  const camStats = viewing
+    ? ((state.players[prefs.playerCam] as PlayerStats | undefined) ?? null)
+    : liveStats;
 
   const set = useCallback((p: Partial<Prefs>) => {
     setPrefs((cur) => {
@@ -96,16 +113,27 @@ export default function App() {
     const top = [...narrative].sort((a, b) => b.priority - a.priority)[0];
     setLowerThird(top);
     window.clearTimeout(timers.current.lt);
-    timers.current.lt = window.setTimeout(() => setLowerThird(null), LOWER_THIRD_MS);
-    const shape = narrative.find((o) => o.evidence.some((e) => e.metric === "defensive_line_m"));
+    timers.current.lt = window.setTimeout(
+      () => setLowerThird(null),
+      LOWER_THIRD_MS,
+    );
+    const shape = narrative.find((o) =>
+      o.evidence.some((e) => e.metric === "defensive_line_m"),
+    );
     if (shape) {
       setCallout(shape);
       window.clearTimeout(timers.current.co);
-      timers.current.co = window.setTimeout(() => setCallout(null), LOWER_THIRD_MS + 4000);
+      timers.current.co = window.setTimeout(
+        () => setCallout(null),
+        LOWER_THIRD_MS + 4000,
+      );
     }
     if (prefs.voice && !replay.active) {
       const v = pickVariant(top, prefs);
-      say(`${v.headline}. ${v.body ?? ""}`, top.variants[prefs.language] ? prefs.language : "en");
+      say(
+        `${v.headline}. ${v.body ?? ""}`,
+        top.variants[prefs.language] ? prefs.language : "en",
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.overlays]);
@@ -120,7 +148,12 @@ export default function App() {
     document.documentElement.lang = prefs.language;
   }, [prefs.language]);
 
-  const kickoff = (seed: number, speed: number, source: "local" | "eventhub" = "local", brief = "") => {
+  const kickoff = (
+    seed: number,
+    speed: number,
+    source: "local" | "eventhub" = "local",
+    brief = "",
+  ) => {
     seen.current = 0;
     clearGraphics();
     replay.stop();
@@ -137,7 +170,9 @@ export default function App() {
       await openArchive(id);
       setTab("recap");
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Couldn't open that match.");
+      window.alert(
+        e instanceof Error ? e.message : "Couldn't open that match.",
+      );
     }
   };
 
@@ -163,13 +198,16 @@ export default function App() {
   const meta = state.metadata;
   const status = state.status;
   const finishing = status.phase === "finishing";
-  const started = !!viewing || state.running || !!state.frame || state.overlays.length > 0;
+  const started =
+    !!viewing || state.running || !!state.frame || state.overlays.length > 0;
 
   if (!started) {
     return (
       <main className="shell kickoff-shell">
         <Kickoff onStart={kickoff} onOpenArchive={open} />
-        {!state.connected && <p className="conn">Connecting to the match room…</p>}
+        {!state.connected && (
+          <p className="conn">Connecting to the match room…</p>
+        )}
       </main>
     );
   }
@@ -190,7 +228,11 @@ export default function App() {
           ? `${state.minute}' ❚❚`
           : `${state.minute}'`;
 
-  const pitchFrame = replay.active ? replay.frame : viewing ? null : state.frame;
+  const pitchFrame = replay.active
+    ? replay.frame
+    : viewing
+      ? null
+      : state.frame;
   const replayLabel = replay.active ? `${replay.active.minute}'` : null;
 
   return (
@@ -199,7 +241,10 @@ export default function App() {
         <div className="archive-banner" role="status">
           <span>
             <strong>Archived match</strong> · {viewing.title} ·{" "}
-            {new Date(viewing.startedAt * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+            {new Date(viewing.startedAt * 1000).toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
             {state.liveStatus?.running ? " · a live match is on now" : ""}
           </span>
           <button className="chip" onClick={leaveArchive}>
@@ -216,22 +261,40 @@ export default function App() {
             {state.score.away}
           </span>
           <span className="team away">{meta?.away.short_name ?? "Away"}</span>
-          <span className={`clock ${status.paused ? "paused" : ""}`}>{clock}</span>
+          <span className={`clock ${status.paused ? "paused" : ""}`}>
+            {clock}
+          </span>
         </div>
         <nav className="tabs" aria-label="Views">
           <button aria-pressed={tab === "live"} onClick={() => setTab("live")}>
             {viewing ? "Moments" : "Live"}
           </button>
-          <button aria-pressed={tab === "coach"} onClick={() => setTab("coach")}>
-            Coach{Object.keys(state.coach).length ? ` (${Object.keys(state.coach).length})` : ""}
+          <button
+            aria-pressed={tab === "coach"}
+            onClick={() => setTab("coach")}
+          >
+            Coach
+            {Object.keys(state.coach).length
+              ? ` (${Object.keys(state.coach).length})`
+              : ""}
           </button>
-          <button aria-pressed={tab === "producer"} onClick={() => setTab("producer")}>
+          <button
+            aria-pressed={tab === "producer"}
+            onClick={() => setTab("producer")}
+          >
             Producer
           </button>
-          <button aria-pressed={tab === "recap"} disabled={!state.recap} onClick={() => setTab("recap")}>
+          <button
+            aria-pressed={tab === "recap"}
+            disabled={!state.recap}
+            onClick={() => setTab("recap")}
+          >
             Recap
           </button>
-          <button aria-pressed={tab === "matches"} onClick={() => setTab("matches")}>
+          <button
+            aria-pressed={tab === "matches"}
+            onClick={() => setTab("matches")}
+          >
             Matches
           </button>
           {!viewing && state.running && status.can_pause && (
@@ -247,23 +310,42 @@ export default function App() {
             <button
               className="control danger"
               onClick={() => {
-                if (window.confirm("End the match now? The crew writes a recap of the match so far and saves it.")) control("end");
+                if (
+                  window.confirm(
+                    "End the match now? The crew writes a recap of the match so far and saves it.",
+                  )
+                )
+                  control("end");
               }}
             >
               ■ End match
             </button>
           )}
           {!viewing && !state.running && (
-            <button className="primary" disabled={finishing} onClick={() => kickoff(Math.floor(Math.random() * 9000) + 1, 20)}>
+            <button
+              className="primary"
+              disabled={finishing}
+              onClick={() => kickoff(Math.floor(Math.random() * 9000) + 1, 20)}
+            >
               {finishing ? "Writing recap…" : "New match"}
             </button>
           )}
         </nav>
-        <Controls prefs={prefs} set={set} meta={meta} languages={state.languages} />
-        {state.scenario?.storyline && <p className="storyline">Storyline: {state.scenario.storyline}</p>}
+        <Controls
+          prefs={prefs}
+          set={set}
+          meta={meta}
+          languages={state.languages}
+          tab={tab}
+          archived={!!viewing}
+        />
+        {state.scenario?.storyline && (
+          <p className="storyline">Storyline: {state.scenario.storyline}</p>
+        )}
         {!viewing && status.phase === "half_time" && (
           <p className="ht-note" role="status">
-            Half-time. The coach analysts are writing their reports; play restarts when they're ready.
+            Half-time. The coach analysts are writing their reports; play
+            restarts when they're ready.
           </p>
         )}
       </header>
@@ -277,14 +359,24 @@ export default function App() {
               prefs={prefs}
               lowerThird={replay.active ?? lowerThird}
               shapeCallout={
-                replay.active ? (replay.active.evidence.some((e) => e.metric === "defensive_line_m") ? replay.active : null) : callout
+                replay.active
+                  ? replay.active.evidence.some(
+                      (e) => e.metric === "defensive_line_m",
+                    )
+                    ? replay.active
+                    : null
+                  : callout
               }
               replayLabel={replayLabel}
               onExitReplay={replay.active ? replay.stop : undefined}
               exitLabel={viewing ? "Close replay" : "Back to live"}
-              camStats={replay.active ? null : camStats}
+              camStats={camStats}
               onToggle3d={() => set({ view3d: !prefs.view3d })}
-              emptyText={viewing ? "Press “Show me” on any moment to replay it on the pitch." : undefined}
+              emptyText={
+                viewing
+                  ? "Press “Show me” on any moment to replay it on the pitch."
+                  : undefined
+              }
             />
             {!viewing && (
               <Meters
@@ -297,12 +389,29 @@ export default function App() {
               />
             )}
             {(prefs.focus === "all" || viewing) && (
-              <StoryChart history={state.history} events={state.events} overlays={state.overlays} meta={meta} compact />
+              <StoryChart
+                history={state.history}
+                events={state.events}
+                overlays={state.overlays}
+                meta={meta}
+                compact
+              />
             )}
           </div>
           <aside className="stage-side" aria-label="Insights">
-            {!viewing && <AskPundit prefs={prefs} onTerm={setTerm} enabled={!!meta && state.running} />}
-            {!viewing && prefs.playerCam && <PlayerCard p={camStats as Record<string, any> | null} />}
+            {!viewing && (
+              <AskPundit
+                prefs={prefs}
+                onTerm={setTerm}
+                enabled={!!meta && state.running}
+              />
+            )}
+            {prefs.playerCam && (
+              <PlayerCard
+                p={camStats as Record<string, any> | null}
+                title={viewing ? "Full match" : "Live"}
+              />
+            )}
             <Feed
               overlays={state.overlays}
               meta={meta}
@@ -314,7 +423,15 @@ export default function App() {
           </aside>
         </div>
       )}
-      {tab === "coach" && <CoachView coach={state.coach} meta={meta} prefs={prefs} running={state.running} archived={!!viewing} />}
+      {tab === "coach" && (
+        <CoachView
+          coach={state.coach}
+          meta={meta}
+          prefs={prefs}
+          running={state.running}
+          archived={!!viewing}
+        />
+      )}
       {tab === "producer" && <Producer trace={state.trace} />}
       {tab === "recap" && state.recap && (
         <RecapView
@@ -329,17 +446,33 @@ export default function App() {
               viewingArchive={!!viewing}
             />
           }
-          chart={<StoryChart history={state.history} events={state.events} overlays={state.overlays} meta={meta} />}
+          chart={
+            <StoryChart
+              history={state.history}
+              events={state.events}
+              overlays={state.overlays}
+              meta={meta}
+            />
+          }
         />
       )}
       {tab === "matches" && (
         <div className="matches-view">
           <h2>Past matches</h2>
-          <ArchiveList onOpen={open} onRerun={!(viewing ? state.liveStatus?.running : state.running) ? (seed) => kickoff(seed, 20) : undefined} />
+          <ArchiveList
+            onOpen={open}
+            onRerun={
+              !(viewing ? state.liveStatus?.running : state.running)
+                ? (seed) => kickoff(seed, 20)
+                : undefined
+            }
+          />
         </div>
       )}
       {term && <GlossaryDialog term={term} onClose={() => setTerm(null)} />}
-      <footer className="foot">Synthetic data. Clubs and players are fictional.</footer>
+      <footer className="foot">
+        Synthetic data. Clubs and players are fictional.
+      </footer>
     </main>
   );
 }

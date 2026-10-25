@@ -38,6 +38,8 @@ export interface MatchState {
   viewing: { id: string; title: string; ended: string; startedAt: number } | null;
   /** The live room's status, kept fresh while viewing an archived match. */
   liveStatus: MatchStatus | null;
+  /** Full-match player stats saved with an archived match (live matches fetch them from the API). */
+  players: Record<string, Record<string, any>>;
 }
 
 const initial: MatchState = {
@@ -63,6 +65,7 @@ const initial: MatchState = {
   archiveId: null,
   viewing: null,
   liveStatus: null,
+  players: {},
 };
 
 type Action =
@@ -78,6 +81,7 @@ function fromSnapshot(state: MatchState, data: any): MatchState {
     ...state,
     viewing: null,
     liveStatus: null,
+    players: {},
     status,
     running: status.running ?? false,
     scenario: status.scenario ?? null,
@@ -123,6 +127,7 @@ function reducer(state: MatchState, action: Action): MatchState {
       languages: d.languages ?? state.languages,
       scenario: d.scenario ? { title: d.scenario.title, storyline: d.scenario.storyline } : null,
       archiveId: d.id,
+      players: d.players ?? {},
       liveStatus: state.viewing ? state.liveStatus : state.status,
       viewing: { id: d.id, title: d.title, ended: d.ended, startedAt: d.started_at },
     };

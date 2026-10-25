@@ -1,56 +1,103 @@
 import React, { useEffect, useState } from "react";
-import type { ArchiveSummary, Metadata, Prefs, Recap, TraceStep } from "./types";
+import type {
+  ArchiveSummary,
+  Metadata,
+  Prefs,
+  Recap,
+  TraceStep,
+} from "./types";
 import { AGENT_NAMES, LANG_NAMES } from "./lib";
 import { onSpeaking, say, stopSpeaking } from "./audio";
 
 /* ------------------------------------------------------------------ Controls */
-export function Controls({ prefs, set, meta, languages }: {
+/**
+ * Viewing preferences. Only the ones that change the current screen are shown:
+ * the live view uses all of them, the recap only the language, coach / producer / matches none.
+ */
+export function Controls({
+  prefs,
+  set,
+  meta,
+  languages,
+  tab,
+  archived,
+}: {
   prefs: Prefs;
   set: (p: Partial<Prefs>) => void;
   meta: Metadata | null;
   languages: string[];
+  tab: string;
+  archived: boolean;
 }) {
   const players = meta ? [...meta.home.players, ...meta.away.players] : [];
+  if (tab !== "live" && tab !== "recap") return null;
+  const live = tab === "live";
   return (
     <div className="controls" role="group" aria-label="Viewing preferences">
-      <div className="seg" role="radiogroup" aria-label="Viewing mode">
-        {(["casual", "analyst"] as const).map((a) => (
-          <button key={a} role="radio" aria-checked={prefs.audience === a} onClick={() => set({ audience: a })}>
-            {a === "casual" ? "Casual" : "Analyst"}
-          </button>
-        ))}
-      </div>
-      <label>
-        <span>Support</span>
-        <select value={prefs.lens} onChange={(e) => set({ lens: e.target.value as Prefs["lens"] })}>
-          <option value="neutral">Neutral</option>
-          <option value="home">{meta?.home.name ?? "Home"}</option>
-          <option value="away">{meta?.away.name ?? "Away"}</option>
-        </select>
-      </label>
-      <label>
-        <span>Player cam</span>
-        <select value={prefs.playerCam} onChange={(e) => set({ playerCam: e.target.value })}>
-          <option value="">Off</option>
-          {players.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.number} {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>Focus</span>
-        <select value={prefs.focus} onChange={(e) => set({ focus: e.target.value as Prefs["focus"] })}>
-          <option value="all">All meters</option>
-          <option value="control">Control vs chaos</option>
-          <option value="pressure">Pressure</option>
-          <option value="rhythm">Rhythm</option>
-        </select>
-      </label>
+      {live && (
+        <>
+          <div className="seg" role="radiogroup" aria-label="Viewing mode">
+            {(["casual", "analyst"] as const).map((a) => (
+              <button
+                key={a}
+                role="radio"
+                aria-checked={prefs.audience === a}
+                onClick={() => set({ audience: a })}
+              >
+                {a === "casual" ? "Casual" : "Analyst"}
+              </button>
+            ))}
+          </div>
+          <label>
+            <span>Support</span>
+            <select
+              value={prefs.lens}
+              onChange={(e) => set({ lens: e.target.value as Prefs["lens"] })}
+            >
+              <option value="neutral">Neutral</option>
+              <option value="home">{meta?.home.name ?? "Home"}</option>
+              <option value="away">{meta?.away.name ?? "Away"}</option>
+            </select>
+          </label>
+          <label>
+            <span>Player cam</span>
+            <select
+              value={prefs.playerCam}
+              onChange={(e) => set({ playerCam: e.target.value })}
+            >
+              <option value="">Off</option>
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.number} {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {!archived && (
+            <label>
+              <span>Focus</span>
+              <select
+                value={prefs.focus}
+                onChange={(e) =>
+                  set({ focus: e.target.value as Prefs["focus"] })
+                }
+              >
+                <option value="all">All meters</option>
+                <option value="control">Control vs chaos</option>
+                <option value="pressure">Pressure</option>
+                <option value="rhythm">Rhythm</option>
+              </select>
+            </label>
+          )}
+        </>
+      )}
       <label>
         <span>Language</span>
-        <select value={prefs.language} onChange={(e) => set({ language: e.target.value })}>
+        <select
+          value={prefs.language}
+          onChange={(e) => set({ language: e.target.value })}
+        >
           {languages.map((l) => (
             <option key={l} value={l}>
               {LANG_NAMES[l] ?? l}
@@ -58,27 +105,41 @@ export function Controls({ prefs, set, meta, languages }: {
           ))}
         </select>
       </label>
-      <label className="check voice-toggle" title="Read each new insight aloud in your language">
-        <input
-          type="checkbox"
-          checked={prefs.voice}
-          onChange={(e) => {
-            if (!e.target.checked) stopSpeaking();
-            set({ voice: e.target.checked });
-          }}
-        />
-        <span>Commentary voice</span>
-      </label>
+      {live && !archived && (
+        <label
+          className="check voice-toggle"
+          title="Read each new insight aloud in your language"
+        >
+          <input
+            type="checkbox"
+            checked={prefs.voice}
+            onChange={(e) => {
+              if (!e.target.checked) stopSpeaking();
+              set({ voice: e.target.checked });
+            }}
+          />
+          <span>Commentary voice</span>
+        </label>
+      )}
     </div>
   );
 }
 
 /* ---------------------------------------------------------------- Player cam */
-export function PlayerCard({ p }: { p: Record<string, any> | null }) {
+export function PlayerCard({
+  p,
+  title,
+}: {
+  p: Record<string, any> | null;
+  title?: string;
+}) {
   if (!p || p.error) return null;
   return (
     <aside className="player-card" aria-label={`Player cam: ${p.player}`}>
-      <h3>{p.player}</h3>
+      <h3>
+        {p.player} {title && <span className="card-kicker">{title}</span>}
+      </h3>
+      {p.team && <p className="muted card-team">{p.team}</p>}
       <dl>
         <dt>Distance</dt>
         <dd>{p.distance_km} km</dd>
@@ -131,7 +192,10 @@ export function Producer({ trace }: { trace: TraceStep[] }) {
         <Node id="match_director" sub="decides what airs" />
         <span className="arrow" aria-hidden="true" />
         <div className="parallel">
-          <Node id="tactical_analyst" sub={`${count("tactical_analyst")} calls · MCP tools`} />
+          <Node
+            id="tactical_analyst"
+            sub={`${count("tactical_analyst")} calls · MCP tools`}
+          />
           <Node id="moment_judge" />
         </div>
         <span className="arrow" aria-hidden="true" />
@@ -149,8 +213,9 @@ export function Producer({ trace }: { trace: TraceStep[] }) {
         </div>
       </div>
       <p className="producer-intro">
-        The gallery behind the broadcast: every agent hop, live. Rejections show the Fact-Checker sending a line back; errors
-        show a model call failing and the crew recovering.
+        The gallery behind the broadcast: every agent hop, live. Rejections show
+        the Fact-Checker sending a line back; errors show a model call failing
+        and the crew recovering.
       </p>
       <table className="crew-table">
         <thead>
@@ -176,7 +241,9 @@ export function Producer({ trace }: { trace: TraceStep[] }) {
         {recent.map((s, i) => (
           <li key={i} className={`status-${s.status}`}>
             <span className="minute">{s.minute}'</span>
-            <span className="step-agent">{AGENT_NAMES[s.agent] ?? s.agent}</span>
+            <span className="step-agent">
+              {AGENT_NAMES[s.agent] ?? s.agent}
+            </span>
             <span className="step-action">{s.action}</span>
             <span className="num">{s.ms} ms</span>
           </li>
@@ -187,7 +254,12 @@ export function Producer({ trace }: { trace: TraceStep[] }) {
 }
 
 /* --------------------------------------------------------------------- Recap */
-export function RecapView({ recap, language, chart, highlights }: {
+export function RecapView({
+  recap,
+  language,
+  chart,
+  highlights,
+}: {
   recap: Recap;
   language: string;
   chart: React.ReactNode;
@@ -195,31 +267,52 @@ export function RecapView({ recap, language, chart, highlights }: {
 }) {
   const [audio, setAudio] = useState("");
   const [playing, setPlaying] = useState(false);
-  useEffect(() => onSpeaking((on) => !on && setPlaying(false)), []);
+
   useEffect(() => () => stopSpeaking(), []);
   const r = recap.recap;
   const translated = recap.translations?.[language];
-  const tr = translated ?? recap.translations?.en ?? { headline: r.headline, paragraphs: r.paragraphs };
+  const tr = translated ??
+    recap.translations?.en ?? {
+      headline: r.headline,
+      paragraphs: r.paragraphs,
+    };
   const text = [tr.headline, ...tr.paragraphs].join(" ");
   const voiceLang = translated ? language : "en";
+  useEffect(
+    () =>
+      onSpeaking((on, playingText) => setPlaying(on && playingText === text)),
+    [text],
+  );
   return (
     <article className="recap">
-      {recap.stopped_at != null && <p className="stopped-note">Ended early by the producer at {recap.stopped_at}'</p>}
+      {recap.stopped_at != null && (
+        <p className="stopped-note">
+          Ended early by the producer at {recap.stopped_at}'
+        </p>
+      )}
       <h2>{tr.headline}</h2>
-      {language !== "en" && !translated && <p className="muted">This recap isn't available in {LANG_NAMES[language] ?? language} yet; showing English.</p>}
+      {language !== "en" && !translated && (
+        <p className="muted">
+          This recap isn't available in {LANG_NAMES[language] ?? language} yet;
+          showing English.
+        </p>
+      )}
       <div className="recap-actions">
         <button
           className="primary"
           onClick={async () => {
             if (playing) {
               stopSpeaking();
-              setPlaying(false);
+              setAudio("");
               return;
             }
-            setPlaying(true);
             setAudio("Loading audio…");
             await say(text, voiceLang, (how) =>
-              setAudio(how === "azure" ? `Voice: Azure AI Speech (${LANG_NAMES[voiceLang]})` : `Voice: your browser (${LANG_NAMES[voiceLang]})`),
+              setAudio(
+                how === "azure"
+                  ? `Voice: Azure AI Speech (${LANG_NAMES[voiceLang]})`
+                  : `Voice: your browser (${LANG_NAMES[voiceLang]})`,
+              ),
             );
           }}
         >
@@ -244,7 +337,8 @@ export function RecapView({ recap, language, chart, highlights }: {
       )}
       {r.player_of_the_match && (
         <p className="potm">
-          <strong>Player of the match: {r.player_of_the_match}.</strong> {r.player_of_the_match_reason}
+          <strong>Player of the match: {r.player_of_the_match}.</strong>{" "}
+          {r.player_of_the_match_reason}
         </p>
       )}
     </article>
@@ -252,7 +346,13 @@ export function RecapView({ recap, language, chart, highlights }: {
 }
 
 /* ------------------------------------------------------------------ Glossary */
-export function GlossaryDialog({ term, onClose }: { term: string; onClose: () => void }) {
+export function GlossaryDialog({
+  term,
+  onClose,
+}: {
+  term: string;
+  onClose: () => void;
+}) {
   const [d, setD] = useState<Record<string, any> | null>(null);
   useEffect(() => {
     fetch(`/api/glossary/${encodeURIComponent(term)}`)
@@ -266,7 +366,13 @@ export function GlossaryDialog({ term, onClose }: { term: string; onClose: () =>
   }, [onClose]);
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="gl-title" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gl-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 id="gl-title">{d?.term ?? term}</h2>
         {d?.definition && <p>{d.definition}</p>}
         {d?.how_we_measure && (
@@ -297,7 +403,11 @@ export function GlossaryDialog({ term, onClose }: { term: string; onClose: () =>
 /* ------------------------------------------------------------------- Archive */
 const PAGE = 8;
 
-export function ArchiveList({ onOpen, onRerun, compact }: {
+export function ArchiveList({
+  onOpen,
+  onRerun,
+  compact,
+}: {
   onOpen: (id: string) => void;
   onRerun?: (seed: number) => void;
   compact?: boolean;
@@ -313,7 +423,9 @@ export function ArchiveList({ onOpen, onRerun, compact }: {
   const load = async (p: number, cursor: string) => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/matches?limit=${compact ? 4 : PAGE}&cursor=${encodeURIComponent(cursor)}`);
+      const r = await fetch(
+        `/api/matches?limit=${compact ? 4 : PAGE}&cursor=${encodeURIComponent(cursor)}`,
+      );
       const d = await r.json();
       setItems(d.items ?? []);
       setNext(d.next ?? null);
@@ -337,34 +449,54 @@ export function ArchiveList({ onOpen, onRerun, compact }: {
     load(page, cursors[page]);
   };
 
-  if (loading && !items.length) return <p className="muted">Loading past matches…</p>;
+  if (loading && !items.length)
+    return <p className="muted">Loading past matches…</p>;
   if (error) return <p className="field-error">{error}</p>;
   if (!items.length)
-    return compact ? null : <p className="muted">No matches yet. Every match you kick off is saved here when it ends.</p>;
+    return compact ? null : (
+      <p className="muted">
+        No matches yet. Every match you kick off is saved here when it ends.
+      </p>
+    );
 
   return (
-    <section className={`archive ${compact ? "compact" : ""}`} aria-label="Past matches">
+    <section
+      className={`archive ${compact ? "compact" : ""}`}
+      aria-label="Past matches"
+    >
       {compact && <h2>Past matches</h2>}
       <ul>
         {items.map((m) => (
           <li key={m.id} className="archive-row">
             <div>
               <strong className="archive-title">{m.title}</strong>
-              <span className={m.ended === "stopped" ? "stopped-chip" : "ft-chip"}>
+              <span
+                className={m.ended === "stopped" ? "stopped-chip" : "ft-chip"}
+              >
                 {m.ended === "stopped" ? `Stopped ${m.minute}'` : "FT"}
               </span>
               <p className="muted">
-                {new Date(m.ended_at * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} · seed {m.seed} ·{" "}
-                {m.insights} insights{m.scenario_title ? ` · ${m.scenario_title}` : ""}
+                {new Date(m.ended_at * 1000).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}{" "}
+                · seed {m.seed} · {m.insights} insights
+                {m.scenario_title ? ` · ${m.scenario_title}` : ""}
               </p>
-              {!compact && m.headline && <p className="archive-headline">{m.headline}</p>}
+              {!compact && m.headline && (
+                <p className="archive-headline">{m.headline}</p>
+              )}
             </div>
             <div className="archive-actions">
               <button className="primary" onClick={() => onOpen(m.id)}>
                 Open
               </button>
               {onRerun && !compact && (
-                <button className="chip" onClick={() => onRerun(m.seed)} title="Kick off the same match again (same seed)">
+                <button
+                  className="chip"
+                  onClick={() => onRerun(m.seed)}
+                  title="Kick off the same match again (same seed)"
+                >
                   Re-run
                 </button>
               )}
@@ -387,7 +519,9 @@ export function ArchiveList({ onOpen, onRerun, compact }: {
         </button>
         <span className="muted">
           Page {page + 1}
-          {total != null ? ` of ${Math.max(1, Math.ceil(total / (compact ? 4 : PAGE)))}` : ""}
+          {total != null
+            ? ` of ${Math.max(1, Math.ceil(total / (compact ? 4 : PAGE)))}`
+            : ""}
         </span>
         <button
           className="chip"
@@ -403,8 +537,9 @@ export function ArchiveList({ onOpen, onRerun, compact }: {
       </nav>
       {!compact && (
         <p className="muted small">
-          The newest 50 matches are kept. Each one stores every insight, coach report, recap and chart; the pitch
-          replays are rebuilt from the match seed, so no video is stored.
+          The newest 50 matches are kept. Each one stores every insight, coach
+          report, recap and chart; the pitch replays are rebuilt from the match
+          seed, so no video is stored.
         </p>
       )}
     </section>
@@ -412,8 +547,16 @@ export function ArchiveList({ onOpen, onRerun, compact }: {
 }
 
 /* ------------------------------------------------------------------- Kickoff */
-export function Kickoff({ onStart, onOpenArchive }: {
-  onStart: (seed: number, speed: number, source: "local" | "eventhub", brief: string) => void;
+export function Kickoff({
+  onStart,
+  onOpenArchive,
+}: {
+  onStart: (
+    seed: number,
+    speed: number,
+    source: "local" | "eventhub",
+    brief: string,
+  ) => void;
   onOpenArchive: (id: string) => void;
 }) {
   const [brief, setBrief] = useState("");
@@ -434,12 +577,19 @@ export function Kickoff({ onStart, onOpenArchive }: {
     <div className="kickoff">
       <h1>The Gallery</h1>
       <p className="lede">
-        A crew of AI agents watches every pass, works out what matters, checks its facts, and tells the story your way: in
-        your language, for your club, at your level.
+        A crew of AI agents watches every pass, works out what matters, checks
+        its facts, and tells the story your way: in your language, for your
+        club, at your level.
       </p>
-      <p className="muted">Riverside Athletic v Northgate United, a synthetic match generated live. Clubs and players are fictional.</p>
+      <p className="muted">
+        Riverside Athletic v Northgate United, a synthetic match generated live.
+        Clubs and players are fictional.
+      </p>
       <label className="brief">
-        <span>Storyline (optional). The Scenario Writer agent turns it into the match.</span>
+        <span>
+          Storyline (optional). The Scenario Writer agent turns it into the
+          match.
+        </span>
         <textarea
           rows={2}
           maxLength={400}
@@ -451,11 +601,20 @@ export function Kickoff({ onStart, onOpenArchive }: {
       <div className="kickoff-form">
         <label>
           <span>Match seed</span>
-          <input type="number" min={1} max={9999} value={seed} onChange={(e) => setSeed(Number(e.target.value) || 1)} />
+          <input
+            type="number"
+            min={1}
+            max={9999}
+            value={seed}
+            onChange={(e) => setSeed(Number(e.target.value) || 1)}
+          />
         </label>
         <label>
           <span>Speed</span>
-          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+          <select
+            value={speed}
+            onChange={(e) => setSpeed(Number(e.target.value))}
+          >
             <option value={10}>10× (9 minutes)</option>
             <option value={20}>20× (about 5 minutes)</option>
             <option value={40}>40× (about 2½ minutes)</option>
@@ -463,11 +622,20 @@ export function Kickoff({ onStart, onOpenArchive }: {
         </label>
         {hubAvailable && (
           <label className="check">
-            <input type="checkbox" checked={hub} onChange={(e) => setHub(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={hub}
+              onChange={(e) => setHub(e.target.checked)}
+            />
             <span>Stream through Azure Event Hubs</span>
           </label>
         )}
-        <button className="primary big" onClick={() => onStart(seed, speed, hub ? "eventhub" : "local", brief)}>
+        <button
+          className="primary big"
+          onClick={() =>
+            onStart(seed, speed, hub ? "eventhub" : "local", brief)
+          }
+        >
           Kick off
         </button>
       </div>

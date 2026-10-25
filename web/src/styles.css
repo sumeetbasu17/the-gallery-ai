@@ -359,3 +359,10 @@ button, select, input { font: inherit; color: inherit; }
 .token-foot { position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; background: rgba(0, 0, 0, .38); transform: translate(-50%, -50%); }
 .token-foot.small { width: 10px; height: 10px; }
 .token-foot.cam { width: 44px; height: 44px; background: none; border: 3px solid var(--card); }
+.feed-hint { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.seg-field { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.seg-field .seg button { padding: 5px 14px; }
+.card-kicker { font: 500 12px var(--body); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-left: 6px; }
+.card-team { margin: -4px 0 6px; font-size: 13px; }
+.view-toggle { background: var(--card); color: var(--card-ink); border-color: var(--card); font-weight: 700; font-size: 14px; padding: 6px 14px; box-shadow: 0 2px 10px rgba(0, 0, 0, .35); }
+.view-toggle[aria-pressed="true"] { background: rgba(13, 27, 42, .9); color: var(--card); }

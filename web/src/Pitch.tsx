@@ -143,7 +143,7 @@ export function Pitch({ frame, meta, prefs, lowerThird, shapeCallout, replayLabe
 
       {onToggle3d && (
         <button className="view-toggle" onClick={onToggle3d} aria-pressed={is3d} title="Switch between the flat tactics board and a broadcast camera angle">
-          {is3d ? "2D board" : "3D camera"}
+          {is3d ? "◱ Back to 2D" : "◳ 3D camera"}
         </button>
       )}
 
