@@ -128,7 +128,9 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
         moments = d.get("moments", [])
         score = facts.get("score", {})
         line = " ".join(f"{k} {v}" for k, v in score.items())
-        return {"headline": f"Full-time: {line}", "paragraphs": [f"Final score: {line}."] +
+        status = facts.get("status", "full time")
+        label, lead = ("Full-time", "Final score") if status == "full time" else ("Stopped early", f"Match {status}. Score")
+        return {"headline": f"{label}: {line}", "paragraphs": [f"{lead}: {line}."] +
                 [m for m in moments[:3]], "key_moments": moments[:6],
                 "player_of_the_match": facts.get("standout", {}).get("player", ""),
                 "player_of_the_match_reason": "Led the match for difficult passes completed."}

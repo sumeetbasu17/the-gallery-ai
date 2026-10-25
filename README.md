@@ -82,7 +82,11 @@ python -m mcp_server --seed 7 --until 70 --port 8765   # explore with any MCP cl
 | **Storyteller** | Writes the on-screen line from verified facts |
 | **Fact-Checker** | Deterministic check of every number, name and direction, plus an LLM semantic check; rejects and sends back for a rewrite |
 | **Fan Producer** | Casual, analyst, home-fan and away-fan versions in every language |
-| **Recap writer** | Full-time recap, fact-checked like everything else |
+| **Recap Writer** | Full-time recap (or a recap of a match the producer ended early), fact-checked like everything else |
+| **Translator** | The recap in every language |
+| **Pundit** | Answers viewers' live questions from MCP tool results; the question is treated as untrusted input |
+| **Coach Analyst** | Half-time report per club: what works, what doesn't, three changes, every point backed by a number |
+| **Scenario Writer** | Turns a one-line storyline into a synthetic match |
 
 Quick data tags (top speed, shot speed, pass difficulty, cards) skip the LLM entirely. If a model call fails or a story fails fact-checking twice, deterministic templates keep the broadcast running, and the overlay is marked unverified. Every overlay carries its agent trace for the Producer view.
 
@@ -101,7 +105,20 @@ cd services && uvicorn match_room.app:app --port 8000
 cd web && npm install && npm run dev        # open http://localhost:5173
 ```
 
-Pick a seed and a speed, press **Kick off**, and switch between **Casual / Analyst**, a club lens, **Player cam**, a single-meter **Focus**, and **English / हिन्दी / Español**. The **Producer** tab shows the crew's handoffs live. Set `GALLERY_ANALYST_VIA_MCP=1` to make the Analyst call the live `/mcp` endpoint over real MCP.
+If port 8000 is taken, run the API on another port and point the web app at it: `uvicorn match_room.app:app --port 8001` and `npm run dev:8001`.
+
+Pick a seed and a speed, press **Kick off**, and switch between **Casual / Analyst**, a club lens, **Player cam**, a single-meter **Focus**, and **English / हिन्दी / Español**. Then:
+
+- **Show me** on any insight replays that moment on the pitch, with the analyst's evidence (for example the old and new defensive line) drawn on the grass.
+- **3D camera** tilts the pitch into a broadcast angle; with Player cam on, the camera follows that player with a live stat card beside them.
+- **Ask the pundit** a question in your language; **Listen** reads the answer aloud.
+- **Commentary voice** reads each new insight aloud (Azure AI Speech when configured, the browser voice otherwise).
+- **Pause / Resume / End match** are producer controls. At half-time play holds while the **Coach** reports are written, like a real broadcast break. Ending early still produces a recap.
+- **Recap** has the match story chart, the audio recap in every language and an auto-generated **highlights reel**: the goals and biggest tactical shifts, replayed and narrated.
+- **Matches** lists every finished or stopped match (newest 50, paginated). Open one to read its insights, coach reports and recap and replay any moment. Frames are not stored: the simulator is deterministic, so the seed rebuilds them.
+- **Producer** shows the crew's handoffs live, with rejections and recoveries.
+
+Set `GALLERY_ANALYST_VIA_MCP=1` to make the Analyst call the live `/mcp` endpoint over real MCP. The archive uses Cosmos DB when `COSMOS_ENDPOINT` is set and local JSON files in `.gallery-data/` otherwise.
 
 ## Synthetic data at scale
 
@@ -117,4 +134,4 @@ Every match gets a random tactical scenario, and the output includes `labels.jso
 
 ## Status
 
-Work in progress. Done: schema, simulator, stats engine, MCP server, agent crew. match room service, web app. Azure infrastructure, Scenario Writer, dataset generator, evaluation harness.
+Done: schema, simulator, stats engine, MCP server, agent crew, match room service, web app (live view, replays, 3D camera, pundit, coach, recap with highlights, archive), Azure infrastructure, Scenario Writer, dataset generator, evaluation harness.

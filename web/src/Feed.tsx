@@ -1,17 +1,20 @@
 import { useState } from "react";
 import type { Metadata, Overlay, Prefs } from "./types";
 import { AGENT_NAMES, METRIC_LABELS, NARRATIVE, fmt, pickVariant, playerName, teamOf } from "./lib";
+import { isReplayable } from "./Replay";
 
 interface Props {
   overlays: Overlay[];
   meta: Metadata | null;
   prefs: Prefs;
   onTerm: (term: string) => void;
+  onReplay?: (o: Overlay) => void;
+  replaying?: string | null;
 }
 
 const TAG_KINDS = new Set(["player_tag", "pass_quality", "shot_speed", "milestone"]);
 
-export function Feed({ overlays, meta, prefs, onTerm }: Props) {
+export function Feed({ overlays, meta, prefs, onTerm, onReplay, replaying }: Props) {
   const visible = overlays
     .filter((o) => {
       if (NARRATIVE.has(o.kind)) return true;
@@ -33,7 +36,7 @@ export function Feed({ overlays, meta, prefs, onTerm }: Props) {
     <ol className="feed" aria-live="polite">
       {visible.map((o) =>
         NARRATIVE.has(o.kind) ? (
-          <Insight key={o.overlay_id} o={o} meta={meta} prefs={prefs} onTerm={onTerm} />
+          <Insight key={o.overlay_id} o={o} meta={meta} prefs={prefs} onTerm={onTerm} onReplay={onReplay} replaying={replaying === o.overlay_id} />
         ) : (
           <Tag key={o.overlay_id} o={o} prefs={prefs} />
         ),
@@ -55,12 +58,19 @@ function Tag({ o, prefs }: { o: Overlay; prefs: Prefs }) {
   );
 }
 
-function Insight({ o, meta, prefs, onTerm }: { o: Overlay; meta: Metadata | null; prefs: Prefs; onTerm: (t: string) => void }) {
+function Insight({ o, meta, prefs, onTerm, onReplay, replaying }: {
+  o: Overlay;
+  meta: Metadata | null;
+  prefs: Prefs;
+  onTerm: (t: string) => void;
+  onReplay?: (o: Overlay) => void;
+  replaying?: boolean;
+}) {
   const [open, setOpen] = useState(prefs.audience === "analyst" && o.kind === "tactical_shift");
   const v = pickVariant(o, prefs);
   const team = teamOf(meta, o.side);
   return (
-    <li className={`insight side-${o.side ?? "none"} kind-${o.kind}`}>
+    <li className={`insight side-${o.side ?? "none"} kind-${o.kind} ${replaying ? "replaying" : ""}`}>
       <span className="minute big">{o.minute}'</span>
       <div className="insight-main">
         <h3>{v.headline}</h3>
@@ -68,6 +78,11 @@ function Insight({ o, meta, prefs, onTerm }: { o: Overlay; meta: Metadata | null
         <div className="insight-meta">
           {team && <span className="team-chip">{team.short_name}</span>}
           <Badge o={o} />
+          {onReplay && isReplayable(o) && (
+            <button className="show-me" onClick={() => onReplay(o)} aria-pressed={replaying}>
+              {replaying ? "Replaying…" : "▶ Show me"}
+            </button>
+          )}
           {prefs.audience === "casual" &&
             o.glossary_terms.map((t) => (
               <button key={t} className="term" onClick={() => onTerm(t)}>
@@ -157,6 +172,12 @@ function dedupe(trace: Overlay["trace"]) {
 }
 
 function Badge({ o }: { o: Overlay }) {
+  if (o.produced_by.length === 1 && o.produced_by[0] === "stats_engine")
+    return (
+      <span className="data-chip" title="Straight from the stats engine: no AI wording, nothing to fact-check">
+        Live data
+      </span>
+    );
   const level = o.check_level ?? (o.verified ? "full" : "template");
   if (level === "full")
     return (

@@ -186,6 +186,7 @@ class MatchSimulator:
         ts.anchors[incoming.id] = ts.anchors[outgoing.id]
         ts.on_pitch[ts.on_pitch.index(outgoing)] = incoming
         ts.subs_made += 1
+        self._subs.append((clock, side, incoming, outgoing))
         self._emit(EventType.SUBSTITUTION, clock, minute, side, player_id=incoming.id,
                    target_player_id=outgoing.id, detail={"in": incoming.name, "out": outgoing.name})
 
@@ -414,7 +415,19 @@ class MatchSimulator:
         frames: list[TrackingFrame] = []
         ki = pi = 0
         minute = 0
+        # Replay the line-ups through time: frames must show who was actually on the pitch at each second.
+        final = {side: list(self.teams[side].on_pitch) for side in Side}
+        for side in Side:
+            self.teams[side].on_pitch = list(self._starters[side])
+        subs = sorted(self._subs, key=lambda s: s[0])
+        si = 0
         for t in range(0, int(total_seconds) + 1):
+            while si < len(subs) and subs[si][0] <= t:
+                _, sub_side, incoming, outgoing = subs[si]
+                lineup = self.teams[sub_side].on_pitch
+                lineup[lineup.index(outgoing)] = incoming
+                current[sub_side][incoming.id] = current[sub_side].pop(outgoing.id, (L / 2, 0.0))
+                si += 1
             while ki + 1 < len(keys) and keys[ki + 1][0] <= t:
                 ki += 1
             while pi + 1 < len(poss) and poss[pi + 1][0] <= t:
@@ -452,10 +465,14 @@ class MatchSimulator:
                                                speed_kmh=round(speed, 1)))
             frames.append(TrackingFrame(match_id=self.match_id, second=float(t),
                                         ball=self._pt(ball), players=players))
+        for side in Side:
+            self.teams[side].on_pitch = final[side]
         return frames
 
     # -------------------------------------------------------------------- run
     def run(self, with_frames: bool = True) -> SimulatedMatch:
+        self._starters = {side: list(self.teams[side].on_pitch) for side in Side}
+        self._subs: list = []
         first_kick = Side.HOME if self.rng.random() < 0.5 else Side.AWAY
         second_kick = Side.AWAY if first_kick == Side.HOME else Side.HOME
         ht = self._play_half(1, 0.0, first_kick)

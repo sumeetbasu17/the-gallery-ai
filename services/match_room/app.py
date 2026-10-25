@@ -6,7 +6,12 @@ Routes
   GET  /api/health                 liveness
   GET  /api/state                  full snapshot (metadata, score, meters, overlays, recap, trace)
   POST /api/match/start            {"seed": 7, "speed": 20, "source": "local" | "eventhub"}
-  POST /api/match/stop
+  POST /api/match/stop             cancel without a recap
+  POST /api/match/pause | resume   producer controls (local replay)
+  POST /api/match/end              end early: recap of the match so far, then archive
+  GET  /api/matches?limit&cursor   archived matches, newest first (paginated)
+  GET  /api/matches/{id}           one archived match (overlays, recap, coach reports, chart)
+  GET  /api/replay?from&to&match   tracking frames for a moment replay (regenerated from the seed)
   GET  /api/glossary/{term}        Jargon Decoder
   GET  /api/players/{player}       player summary
   WS   /ws                         live stream: frame, meters, overlay, trace, event, recap
@@ -21,7 +26,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,6 +37,7 @@ from mcp_server import create_mcp_server
 from mcp_server.glossary import GLOSSARY, lookup
 
 from .room import MatchRoom
+from .speech import available as speech_available
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 
@@ -83,7 +89,8 @@ class StartRequest(BaseModel):
 @app.get("/api/health")
 async def health():
     return {"ok": True, "mode": settings.mode, "model": settings.fast_model, "running": room.status["running"],
-            "eventhub": bool(os.environ.get("EVENTHUB_NAMESPACE")), "cosmos": room.store.enabled}
+            "eventhub": bool(os.environ.get("EVENTHUB_NAMESPACE")), "archive": room.store.backend,
+            "speech": speech_available()}
 
 
 @app.get("/api/state")
@@ -102,6 +109,50 @@ async def start(req: StartRequest):
 async def stop():
     await room.stop()
     return {"stopped": True}
+
+
+@app.post("/api/match/pause")
+async def pause():
+    return {"paused": await room.pause()}
+
+
+@app.post("/api/match/resume")
+async def resume():
+    return {"resumed": await room.resume()}
+
+
+@app.post("/api/match/end")
+async def end_match():
+    ok = await room.end_early()
+    if not ok:
+        return JSONResponse({"error": "No match is running."}, status_code=409)
+    return {"ending": True, "archive_id": room.archive_id}
+
+
+@app.get("/api/matches")
+async def matches(limit: int = 10, cursor: str = ""):
+    return await room.store.list(limit=limit, cursor=cursor or None)
+
+
+@app.get("/api/matches/{match_id}")
+async def match_detail(match_id: str):
+    doc = await room.store.get(match_id)
+    if not doc:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return doc
+
+
+@app.delete("/api/matches/{match_id}")
+async def match_delete(match_id: str):
+    return {"deleted": await room.store.delete(match_id)}
+
+
+@app.get("/api/replay")
+async def replay(start: float = Query(alias="from"), end: float = Query(alias="to"), match: str = ""):
+    frames = await room.replay(start, end, match or None)
+    if frames is None:
+        return JSONResponse({"error": "This match can't be replayed."}, status_code=404)
+    return {"frames": frames}
 
 
 class AskRequest(BaseModel):
@@ -146,10 +197,6 @@ async def speech(req: SpeechRequest):
     return Response(content=audio, media_type="audio/mpeg")
 
 
-@app.get("/api/history")
-async def history(limit: int = 50):
-    """Insights that aired in recent matches (Cosmos DB), for studio review."""
-    return await room.store.recent(limit=max(1, min(200, limit)))
 
 
 @app.get("/api/glossary")

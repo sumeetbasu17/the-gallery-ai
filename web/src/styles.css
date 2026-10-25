@@ -282,3 +282,80 @@ button, select, input { font: inherit; color: inherit; }
   .kickoff h1 { font-size: 52px; }
   .controls select { min-width: 0; }
 }
+
+/* ---------------------------------------------------------------- producer controls */
+.tabs button.control { border-color: var(--chalk); }
+.tabs button.control.danger { border-color: var(--danger); color: var(--danger); }
+.tabs button.primary:disabled { opacity: .6; }
+.scorebug .clock.paused { color: var(--chalk); }
+.ht-note { grid-column: 1 / -1; margin: 0; padding: 8px 12px; border-radius: 6px; background: var(--stand-2); border-left: 4px solid var(--card); }
+.check { display: inline-flex !important; grid-auto-flow: column; align-items: center; gap: 6px; cursor: pointer; color: var(--chalk); }
+.check input { accent-color: var(--card); width: 16px; height: 16px; }
+.voice-toggle { align-self: end; padding-bottom: 6px; }
+.chip.ghost { border-style: dashed; color: var(--muted); }
+.small { font-size: 13px; }
+
+/* ---------------------------------------------------------------- archive */
+.archive-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--stand-2); border: 1px solid var(--card); border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; }
+.matches-view { max-width: 920px; margin: 20px auto 0; }
+.matches-view h2, .archive.compact h2 { font: 700 26px/1.1 var(--display); margin: 0 0 12px; }
+.archive ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.archive-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; background: var(--stand); border-radius: 8px; padding: 12px 14px; }
+.archive-row p { margin: 4px 0 0; }
+.archive-title { font: 700 22px/1.1 var(--display); margin-right: 10px; }
+.archive-headline { color: var(--chalk); }
+.archive-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.ft-chip, .stopped-chip { font: 600 13px var(--display); padding: 1px 7px; border-radius: 3px; background: var(--stand-2); color: var(--chalk); vertical-align: 3px; }
+.stopped-chip { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+.pager { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 14px 0 6px; }
+.archive.compact { margin-top: 34px; text-align: left; }
+.stopped-note { display: inline-block; margin: 0 0 6px; color: var(--danger); font-weight: 600; }
+@media (max-width: 640px) { .archive-row { flex-direction: column; align-items: stretch; } }
+
+/* ---------------------------------------------------------------- audio */
+.recap-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.listen { background: none; border: 1px solid var(--rule); border-radius: 999px; padding: 1px 10px; font-size: 13px; cursor: pointer; color: var(--chalk); }
+.listen[aria-pressed="true"] { border-color: var(--card); color: var(--card); }
+.coach-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+/* ---------------------------------------------------------------- moments & replays */
+.data-chip { border: 1px solid var(--home); color: var(--home); border-radius: 3px; padding: 0 6px; }
+.show-me { background: var(--chalk); color: var(--night); border: 0; border-radius: 999px; padding: 2px 10px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.show-me[aria-pressed="true"] { background: var(--card); color: var(--card-ink); }
+.insight.replaying { outline: 2px solid var(--card); outline-offset: -2px; }
+.replay-bug { position: absolute; top: 12px; left: 12px; display: flex; align-items: center; gap: 10px; background: rgba(13, 27, 42, .92); border-radius: 4px; padding: 5px 10px; font: 700 18px var(--display); letter-spacing: .04em; text-transform: uppercase; z-index: 3; }
+.replay-bug .rec { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
+.replay-bug .chip { text-transform: none; font: 500 13px var(--body); letter-spacing: 0; }
+@media (prefers-reduced-motion: no-preference) { .replay-bug .rec { animation: blink 1s steps(2) infinite; } }
+@keyframes blink { 50% { opacity: .2; } }
+.highlights { background: var(--stand); border-radius: 10px; padding: 14px; margin: 0 0 18px; display: grid; gap: 12px; }
+.highlights header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.highlights h3 { margin: 0 auto 0 0; font: 700 22px var(--display); }
+.reel-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.reel-steps button { width: 100%; text-align: left; background: none; border: 0; padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--muted); }
+.reel-steps li[aria-current="step"] button { background: var(--stand-2); color: var(--chalk); font-weight: 600; }
+
+/* ---------------------------------------------------------------- 3D broadcast camera */
+.pitch-stage { position: relative; transform-origin: 50% 55%; transform-style: preserve-3d; }
+@media (prefers-reduced-motion: no-preference) { .pitch-stage { transition: transform .5s ease-out; } }
+.pitch-wrap.view3d { perspective: 900px; perspective-origin: 50% 0%; background: radial-gradient(120% 90% at 50% 100%, #1d3b2f 0%, #0b1622 70%); }
+.view3d .pitch-stage { transform: rotateX(52deg) scale(.96); }
+.billboards { position: absolute; inset: 0; pointer-events: none; transform-style: preserve-3d; }
+.token-anchor { position: absolute; width: 0; height: 0; transform-style: preserve-3d; }
+@media (prefers-reduced-motion: no-preference) { .token-anchor { transition: left .12s linear, top .12s linear; } }
+.token { position: absolute; left: 0; bottom: 0; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font: 700 13px var(--display); color: #08131d; border: 2px solid rgba(0, 0, 0, .45); transform: translate(-50%, 0) rotateX(-52deg); transform-origin: 50% 100%; box-shadow: 0 6px 6px -4px rgba(0, 0, 0, .5); }
+.token.home { background: var(--home); }
+.token.away { background: var(--away); }
+.token.cam { outline: 3px solid var(--card); outline-offset: 2px; }
+.token.ball3d { width: 12px; height: 12px; background: #fff; border-width: 1px; }
+.shadow { fill: rgba(0, 0, 0, .35); }
+.cam-card { position: absolute; left: 0; bottom: 0; transform: translate(-50%, -34px); transform-origin: 50% 100%; white-space: nowrap; background: rgba(13, 27, 42, .94); border: 1px solid var(--card); border-radius: 6px; padding: 4px 9px; display: grid; gap: 1px; font-size: 12px; color: var(--chalk); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
+.cam-card strong { font: 700 16px/1.1 var(--display); color: var(--card); }
+.cam-card::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 10px; height: 10px; background: inherit; border-right: 1px solid var(--card); border-bottom: 1px solid var(--card); transform: translateX(-50%) rotate(45deg); }
+.view3d .cam-card { transform: translate(-50%, -40px) rotateX(-52deg) scale(.72); }
+.view-toggle { position: absolute; top: 12px; right: 12px; z-index: 3; background: rgba(13, 27, 42, .85); border: 1px solid var(--rule); color: var(--chalk); border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.view-toggle[aria-pressed="true"] { border-color: var(--card); color: var(--card); }
+.kickoff-form select { min-width: 190px; }
+.token-foot { position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; background: rgba(0, 0, 0, .38); transform: translate(-50%, -50%); }
+.token-foot.small { width: 10px; height: 10px; }
+.token-foot.cam { width: 44px; height: 44px; background: none; border: 3px solid var(--card); }

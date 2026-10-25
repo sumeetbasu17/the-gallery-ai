@@ -101,6 +101,14 @@ class Board:
                    {t.value for t in MANDATORY})
 
 
+def _unlabel(text: str, teams: set[str]) -> str:
+    """Drop a leading 'Riverside Athletic fans:' style label from a club-voice line."""
+    head, sep, rest = (text or "").partition(":")
+    if sep and len(head) <= 50 and rest.strip() and any(t.split()[0].lower() in head.lower() for t in teams if t):
+        return rest.strip()[:1].upper() + rest.strip()[1:]
+    return text
+
+
 def glossary_terms(suggested: list[str], text: str, limit: int = 3) -> list[str]:
     """Only terms the Jargon Decoder can actually explain, de-duplicated, at most `limit`."""
     out: list[str] = []
@@ -140,6 +148,7 @@ class Crew:
         self._sem = asyncio.Semaphore(settings.max_parallel_moments)
         self._facts: dict[str, dict[str, Any]] = {}
         self._tasks: set[asyncio.Task] = set()
+        self.half_time_done = asyncio.Event()  # both half-time coach reports written
 
     # ------------------------------------------------------------------ utils
     async def _emit(self, cb, payload) -> None:
@@ -392,9 +401,14 @@ class Crew:
         if s.type == SignalType.FULL_TIME:
             await self.write_recap()
         elif s.type == SignalType.HALF_TIME:
-            for side in ("home", "away"):
-                self._spawn(self.coach_report(side))
+            self._spawn(self._half_time_reports())
         return ov
+
+    async def _half_time_reports(self) -> None:
+        try:
+            await asyncio.gather(*(self.coach_report(side, kind="half_time") for side in ("home", "away")))
+        finally:
+            self.half_time_done.set()
 
     async def _personalise(self, s: Signal, story: Story, allowed: set[float], roster: set[str],
                            teams: set[str], trace: list[AgentStep]) -> dict[str, dict[str, Variant]]:
@@ -411,6 +425,7 @@ class Crew:
                     fv = None
             if fv is None:
                 fv = fallback.fan_versions(story)
+            fv.home_fans, fv.away_fans = _unlabel(fv.home_fans, teams), _unlabel(fv.away_fans, teams)
             return lang, {"casual": Variant(headline=fv.casual_headline, body=fv.casual_body),
                           "analyst": Variant(headline=fv.analyst_headline, body=fv.analyst_body),
                           "home_fans": Variant(headline=fv.casual_headline, body=fv.home_fans),
@@ -424,11 +439,13 @@ class Crew:
         await self._emit(self.on_overlay, ov)
 
     # ---------------------------------------------------------------- recap
-    async def write_recap(self) -> dict:
+    async def write_recap(self, stopped_at: Optional[int] = None) -> dict:
+        """Full-time recap; with `stopped_at`, a recap of a match the producer ended early."""
         trace: list[AgentStep] = []
         s = self.state
         standout = self.match_tools.get_top_performers("pass_difficulty", 1)
-        facts = {"score": self.match_tools.get_match_snapshot()["score"], "teams": s.team_summary(),
+        facts = {"status": f"stopped by the producer at {stopped_at}'" if stopped_at is not None else "full time",
+                 "score": self.match_tools.get_match_snapshot()["score"], "teams": s.team_summary(),
                  "standout": standout[0] if standout else {}, "win_probability_history": self.board.win_prob[-8:]}
         moments = [f"{a['minute']}' {a['headline']}: {a['body']}" for a in self.board.aired]
         recap, _ = await self._call(self.recap_writer, {"facts": facts, "moments": moments}, Recap, trace,
@@ -445,11 +462,13 @@ class Crew:
                 trace.append(AgentStep(agent="fact_checker", action="verify recap", note="approved"))
         if recap is None:
             score = " ".join(f"{k} {v}" for k, v in facts["score"].items())
-            recap = Recap(headline=f"Full-time: {score}", paragraphs=[f"Final score: {score}."] + moments[:3],
+            label = f"Stopped at {stopped_at}'" if stopped_at is not None else "Full-time"
+            recap = Recap(headline=f"{label}: {score}", paragraphs=[f"Final score: {score}."] + moments[:3],
                           key_moments=moments[:6], player_of_the_match=facts["standout"].get("player", ""),
                           player_of_the_match_reason="Highest average pass difficulty in the match.")
             trace.append(AgentStep(agent="storyteller", action="template recap", status="fallback"))
-        self.board.recap = {"recap": recap.model_dump(), "facts": facts, "trace": [t.model_dump() for t in trace]}
+        self.board.recap = {"recap": recap.model_dump(), "facts": facts, "trace": [t.model_dump() for t in trace],
+                            "stopped_at": stopped_at}
         await self.translate_recap()
         return self.board.recap
 
@@ -495,7 +514,7 @@ class Crew:
                 "trace": [t.model_dump() for t in trace]}
 
     # ------------------------------------------------------------ coach report
-    async def coach_report(self, side: str) -> dict:
+    async def coach_report(self, side: str, kind: str = "on_demand") -> dict:
         """Half-time report for one club's staff: what works, what doesn't, three changes."""
         team = self.state.team_name.get(side, side)
         trace: list[AgentStep] = []
@@ -522,7 +541,7 @@ class Crew:
                 break
             await self._step(trace, "fact_checker", "verify coach report", "rejected", "; ".join(chk.problems)[:200])
             payload["feedback"] = chk.problems
-        doc = {"side": side, "club": team, "minute": self.state.minute, "verified": verified,
+        doc = {"side": side, "club": team, "minute": payload["minute"], "kind": kind, "verified": verified,
                "report": report.model_dump() if report else None, "facts": facts,
                "trace": [t.model_dump() for t in trace]}
         self.board.coach_reports[side] = doc

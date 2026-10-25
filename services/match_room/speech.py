@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections import OrderedDict
 from typing import Optional
 from xml.sax.saxutils import escape
 
@@ -17,11 +18,33 @@ VOICES = {"en": ("en-GB", "en-GB-RyanNeural"), "hi": ("hi-IN", "hi-IN-MadhurNeur
           "es": ("es-ES", "es-ES-AlvaroNeural")}
 
 
+_CACHE: "OrderedDict[tuple[str, str], bytes]" = OrderedDict()
+_CACHE_MAX = 64
+
+
+def available() -> bool:
+    return bool(os.environ.get("SPEECH_REGION") and os.environ.get("SPEECH_RESOURCE_ID"))
+
+
 async def synthesize(text: str, language: str) -> Optional[bytes]:
+    """MP3 bytes, or None (not configured / failed). Recent clips are cached: replays cost nothing."""
     region = os.environ.get("SPEECH_REGION")
     resource_id = os.environ.get("SPEECH_RESOURCE_ID")
     if not (region and resource_id and text.strip()):
         return None
+    key = (language, text)
+    if key in _CACHE:
+        _CACHE.move_to_end(key)
+        return _CACHE[key]
+    audio = await _synthesize(text, language, region, resource_id)
+    if audio:
+        _CACHE[key] = audio
+        while len(_CACHE) > _CACHE_MAX:
+            _CACHE.popitem(last=False)
+    return audio
+
+
+async def _synthesize(text: str, language: str, region: str, resource_id: str) -> Optional[bytes]:
     try:
         import httpx
         from azure.identity.aio import DefaultAzureCredential

@@ -10,7 +10,11 @@ export const AGENT_NAMES: Record<string, string> = {
   storyteller: "Storyteller",
   fact_checker: "Fact-Checker",
   fan_producer: "Fan Producer",
-  recap_writer: "Recap writer",
+  recap_writer: "Recap Writer",
+  pundit: "Pundit",
+  coach: "Coach Analyst",
+  translator: "Translator",
+  scenario_writer: "Scenario Writer",
 };
 
 export const METRIC_LABELS: Record<string, string> = {

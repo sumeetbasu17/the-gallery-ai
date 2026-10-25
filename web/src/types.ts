@@ -127,6 +127,7 @@ export interface TraceStep {
 
 export interface Recap {
   translations?: Record<string, { headline: string; paragraphs: string[] }>;
+  stopped_at?: number | null;
   recap: {
     headline: string;
     paragraphs: string[];
@@ -151,6 +152,42 @@ export interface Prefs {
   language: string;
   playerCam: string;
   focus: Focus;
+  voice: boolean;
+  view3d: boolean;
+}
+
+export interface MatchStatus {
+  running: boolean;
+  paused?: boolean;
+  phase?: "idle" | "first_half" | "half_time" | "second_half" | "finishing" | "ended";
+  can_pause?: boolean;
+  ended?: "full_time" | "stopped";
+  seed?: number | null;
+  speed?: number | null;
+  source?: string;
+  archive_id?: string;
+  scenario?: { title?: string; storyline?: string } | null;
+}
+
+/** A compact replay frame: [second, ballX, ballY, [[playerId, x, y], ...]] */
+export type ReplayFrame = [number, number, number, [string, number, number][]];
+
+export interface ArchiveSummary {
+  id: string;
+  title: string;
+  home: string;
+  away: string;
+  score: { home: number; away: number };
+  minute: number;
+  ended: "full_time" | "stopped";
+  seed: number;
+  speed: number;
+  scenario_title?: string | null;
+  started_at: number;
+  ended_at: number;
+  headline?: string | null;
+  insights: number;
+  source?: string;
 }
 
 export interface HistoryPoint {
@@ -167,6 +204,7 @@ export interface CoachDoc {
   side: Side;
   club: string;
   minute: number;
+  kind?: "half_time" | "on_demand";
   verified: boolean;
   report: {
     headline: string;

@@ -31,3 +31,38 @@ def test_websocket_hello(client):
     with client.websocket_connect("/ws") as ws:
         msg = ws.receive_json()
         assert msg["type"] == "hello" and "status" in msg["data"]
+
+
+def test_pause_end_archive_and_replay(client, tmp_path):
+    import time
+
+    from match_room.app import room
+
+    room.store.folder = tmp_path / "matches"
+    assert client.post("/api/match/start", json={"seed": 11, "speed": 120}).json()["started"]
+    deadline = time.time() + 30
+    while room.status["clock"] < 240 and time.time() < deadline:
+        time.sleep(0.2)
+    assert client.post("/api/match/pause").json()["paused"]
+    frozen = room.status["clock"]
+    time.sleep(1.0)
+    assert room.status["clock"] == frozen
+    assert client.post("/api/match/resume").json()["resumed"]
+    time.sleep(0.5)
+    assert room.status["clock"] > frozen
+
+    archive_id = client.post("/api/match/end").json()["archive_id"]
+    deadline = time.time() + 30
+    while room.status.get("phase") != "ended" and time.time() < deadline:
+        time.sleep(0.2)
+    assert room.status["ended"] == "stopped"
+
+    page = client.get("/api/matches?limit=5").json()
+    assert page["items"][0]["id"] == archive_id and page["items"][0]["ended"] == "stopped"
+    doc = client.get(f"/api/matches/{archive_id}").json()
+    assert doc["recap"]["stopped_at"] is not None and doc["seed"] == 11
+
+    live = client.get("/api/replay?from=60&to=70").json()["frames"]
+    assert live and 60 <= live[0][0] <= 70
+    regen = client.get(f"/api/replay?from=60&to=70&match={archive_id}").json()["frames"]
+    assert regen[0] == live[0]  # the seed regenerates the exact same frames

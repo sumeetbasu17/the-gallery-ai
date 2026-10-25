@@ -1,6 +1,6 @@
 # Evaluation
 
-Run: 20 matches (without the agent crew), 64 s.
+Run: 20 matches (without the agent crew), 78 s.
 
 Match 1 uses the default storyline; the rest use **random tactical scenarios** the detectors were not tuned on.
 

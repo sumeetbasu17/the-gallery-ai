@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import type { Metadata, Prefs, Recap, TraceStep } from "./types";
+import type { ArchiveSummary, Metadata, Prefs, Recap, TraceStep } from "./types";
 import { AGENT_NAMES, LANG_NAMES } from "./lib";
-import { playAudio } from "./Extras";
+import { onSpeaking, say, stopSpeaking } from "./audio";
 
 /* ------------------------------------------------------------------ Controls */
 export function Controls({ prefs, set, meta, languages }: {
@@ -58,26 +58,23 @@ export function Controls({ prefs, set, meta, languages }: {
           ))}
         </select>
       </label>
+      <label className="check voice-toggle" title="Read each new insight aloud in your language">
+        <input
+          type="checkbox"
+          checked={prefs.voice}
+          onChange={(e) => {
+            if (!e.target.checked) stopSpeaking();
+            set({ voice: e.target.checked });
+          }}
+        />
+        <span>Commentary voice</span>
+      </label>
     </div>
   );
 }
 
 /* ---------------------------------------------------------------- Player cam */
-export function PlayerCard({ id }: { id: string }) {
-  const [p, setP] = useState<Record<string, any> | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      fetch(`/api/players/${encodeURIComponent(id)}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => alive && setP(d));
-    load();
-    const t = window.setInterval(load, 5000);
-    return () => {
-      alive = false;
-      window.clearInterval(t);
-    };
-  }, [id]);
+export function PlayerCard({ p }: { p: Record<string, any> | null }) {
   if (!p || p.error) return null;
   return (
     <aside className="player-card" aria-label={`Player cam: ${p.player}`}>
@@ -190,25 +187,47 @@ export function Producer({ trace }: { trace: TraceStep[] }) {
 }
 
 /* --------------------------------------------------------------------- Recap */
-export function RecapView({ recap, language, chart }: { recap: Recap; language: string; chart: React.ReactNode }) {
+export function RecapView({ recap, language, chart, highlights }: {
+  recap: Recap;
+  language: string;
+  chart: React.ReactNode;
+  highlights?: React.ReactNode;
+}) {
   const [audio, setAudio] = useState("");
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => onSpeaking((on) => !on && setPlaying(false)), []);
+  useEffect(() => () => stopSpeaking(), []);
   const r = recap.recap;
-  const tr = recap.translations?.[language] ?? recap.translations?.en ?? { headline: r.headline, paragraphs: r.paragraphs };
+  const translated = recap.translations?.[language];
+  const tr = translated ?? recap.translations?.en ?? { headline: r.headline, paragraphs: r.paragraphs };
   const text = [tr.headline, ...tr.paragraphs].join(" ");
+  const voiceLang = translated ? language : "en";
   return (
     <article className="recap">
+      {recap.stopped_at != null && <p className="stopped-note">Ended early by the producer at {recap.stopped_at}'</p>}
       <h2>{tr.headline}</h2>
-      <button
-        className="primary"
-        onClick={async () => {
-          setAudio("Loading audio…");
-          const how = await playAudio(text, language);
-          setAudio(how === "azure" ? "Voice: Azure AI Speech" : how === "browser" ? "Voice: your browser" : "Audio isn't available here.");
-        }}
-      >
-        Play audio recap
-      </button>
-      {audio && <span className="audio-note">{audio}</span>}
+      {language !== "en" && !translated && <p className="muted">This recap isn't available in {LANG_NAMES[language] ?? language} yet; showing English.</p>}
+      <div className="recap-actions">
+        <button
+          className="primary"
+          onClick={async () => {
+            if (playing) {
+              stopSpeaking();
+              setPlaying(false);
+              return;
+            }
+            setPlaying(true);
+            setAudio("Loading audio…");
+            await say(text, voiceLang, (how) =>
+              setAudio(how === "azure" ? `Voice: Azure AI Speech (${LANG_NAMES[voiceLang]})` : `Voice: your browser (${LANG_NAMES[voiceLang]})`),
+            );
+          }}
+        >
+          {playing ? "■ Stop audio" : "▶ Play audio recap"}
+        </button>
+        {audio && <span className="audio-note">{audio}</span>}
+      </div>
+      {highlights}
       {chart}
       {tr.paragraphs.map((p, i) => (
         <p key={i}>{p}</p>
@@ -275,9 +294,127 @@ export function GlossaryDialog({ term, onClose }: { term: string; onClose: () =>
   );
 }
 
+/* ------------------------------------------------------------------- Archive */
+const PAGE = 8;
+
+export function ArchiveList({ onOpen, onRerun, compact }: {
+  onOpen: (id: string) => void;
+  onRerun?: (seed: number) => void;
+  compact?: boolean;
+}) {
+  const [items, setItems] = useState<ArchiveSummary[]>([]);
+  const [cursors, setCursors] = useState<string[]>([""]); // cursor for each page we've visited
+  const [page, setPage] = useState(0);
+  const [next, setNext] = useState<string | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const load = async (p: number, cursor: string) => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/matches?limit=${compact ? 4 : PAGE}&cursor=${encodeURIComponent(cursor)}`);
+      const d = await r.json();
+      setItems(d.items ?? []);
+      setNext(d.next ?? null);
+      setTotal(d.total ?? null);
+      setError(d.error ?? "");
+      setPage(p);
+    } catch {
+      setError("The match archive is unavailable right now.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    load(0, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const remove = async (id: string) => {
+    if (!window.confirm("Delete this match from the archive?")) return;
+    await fetch(`/api/matches/${encodeURIComponent(id)}`, { method: "DELETE" });
+    load(page, cursors[page]);
+  };
+
+  if (loading && !items.length) return <p className="muted">Loading past matches…</p>;
+  if (error) return <p className="field-error">{error}</p>;
+  if (!items.length)
+    return compact ? null : <p className="muted">No matches yet. Every match you kick off is saved here when it ends.</p>;
+
+  return (
+    <section className={`archive ${compact ? "compact" : ""}`} aria-label="Past matches">
+      {compact && <h2>Past matches</h2>}
+      <ul>
+        {items.map((m) => (
+          <li key={m.id} className="archive-row">
+            <div>
+              <strong className="archive-title">{m.title}</strong>
+              <span className={m.ended === "stopped" ? "stopped-chip" : "ft-chip"}>
+                {m.ended === "stopped" ? `Stopped ${m.minute}'` : "FT"}
+              </span>
+              <p className="muted">
+                {new Date(m.ended_at * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} · seed {m.seed} ·{" "}
+                {m.insights} insights{m.scenario_title ? ` · ${m.scenario_title}` : ""}
+              </p>
+              {!compact && m.headline && <p className="archive-headline">{m.headline}</p>}
+            </div>
+            <div className="archive-actions">
+              <button className="primary" onClick={() => onOpen(m.id)}>
+                Open
+              </button>
+              {onRerun && !compact && (
+                <button className="chip" onClick={() => onRerun(m.seed)} title="Kick off the same match again (same seed)">
+                  Re-run
+                </button>
+              )}
+              {!compact && (
+                <button className="chip ghost" onClick={() => remove(m.id)}>
+                  Delete
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <nav className="pager" aria-label="Pages">
+        <button
+          className="chip"
+          disabled={page === 0 || loading}
+          onClick={() => load(page - 1, cursors[page - 1])}
+        >
+          ← Newer
+        </button>
+        <span className="muted">
+          Page {page + 1}
+          {total != null ? ` of ${Math.max(1, Math.ceil(total / (compact ? 4 : PAGE)))}` : ""}
+        </span>
+        <button
+          className="chip"
+          disabled={!next || loading}
+          onClick={() => {
+            const c = [...cursors.slice(0, page + 1), next as string];
+            setCursors(c);
+            load(page + 1, next as string);
+          }}
+        >
+          Older →
+        </button>
+      </nav>
+      {!compact && (
+        <p className="muted small">
+          The newest 50 matches are kept. Each one stores every insight, coach report, recap and chart; the pitch
+          replays are rebuilt from the match seed, so no video is stored.
+        </p>
+      )}
+    </section>
+  );
+}
+
 /* ------------------------------------------------------------------- Kickoff */
-export function Kickoff({ onStart }: {
+export function Kickoff({ onStart, onOpenArchive }: {
   onStart: (seed: number, speed: number, source: "local" | "eventhub", brief: string) => void;
+  onOpenArchive: (id: string) => void;
 }) {
   const [brief, setBrief] = useState("");
   const [seed, setSeed] = useState(7);
@@ -334,6 +471,7 @@ export function Kickoff({ onStart }: {
           Kick off
         </button>
       </div>
+      <ArchiveList compact onOpen={onOpenArchive} />
     </div>
   );
 }

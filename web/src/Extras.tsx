@@ -1,9 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CoachDoc, HistoryPoint, MatchEvent, Metadata, Overlay, Prefs, PunditReply } from "./types";
 import { LANG_NAMES } from "./lib";
+import { onSpeaking, say, stopSpeaking } from "./audio";
 
 /* --------------------------------------------------------------- Ask the pundit */
-const SUGGESTIONS = ["Why is this game so open?", "Who has been the best passer?", "Is the press working?"];
+const SUGGESTIONS: Record<string, string[]> = {
+  en: ["Why is this game so open?", "Who has been the best passer?", "Is the press working?", "Who is more likely to win?"],
+  hi: ["यह मैच इतना खुला क्यों है?", "सबसे अच्छा पासर कौन रहा है?", "क्या प्रेसिंग काम कर रही है?", "कौन जीत सकता है?"],
+  es: ["¿Por qué el partido está tan abierto?", "¿Quién ha sido el mejor pasador?", "¿Está funcionando la presión?", "¿Quién tiene más opciones de ganar?"],
+};
+
+/** A small play/stop button for any text, in the viewer's language. */
+export function ListenButton({ text, language, label = "Listen" }: { text: string; language: string; label?: string }) {
+  const [mine, setMine] = useState(false);
+  useEffect(() => onSpeaking((speaking) => !speaking && setMine(false)), []);
+  return (
+    <button
+      type="button"
+      className="listen"
+      aria-pressed={mine}
+      onClick={() => {
+        if (mine) {
+          stopSpeaking();
+          setMine(false);
+          return;
+        }
+        say(text, language);
+        setMine(true);
+      }}
+    >
+      {mine ? "■ Stop" : `▶ ${label}`}
+    </button>
+  );
+}
 
 export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t: string) => void; enabled: boolean }) {
   const [q, setQ] = useState("");
@@ -27,7 +56,7 @@ export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "The pundit couldn't answer.");
-      setReplies((cur) => [{ question: text, ...d }, ...cur].slice(0, 4));
+      setReplies((cur) => [{ question: text, ...d }, ...cur].slice(0, 5));
       setQ("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "The pundit couldn't answer. Try again.");
@@ -62,23 +91,36 @@ export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t
           </button>
         </div>
         {error && <p className="field-error">{error}</p>}
-        {enabled && !replies.length && (
+        {enabled && (
           <div className="chips">
-            {SUGGESTIONS.map((s) => (
+            {(SUGGESTIONS[prefs.language] ?? SUGGESTIONS.en).map((s) => (
               <button type="button" key={s} className="chip" onClick={() => ask(s)} disabled={busy}>
                 {s}
               </button>
             ))}
+            {replies.length > 0 && (
+              <button
+                type="button"
+                className="chip ghost"
+                onClick={() => {
+                  stopSpeaking();
+                  setReplies([]);
+                }}
+              >
+                Clear answers
+              </button>
+            )}
           </div>
         )}
       </form>
       {replies.map((r, i) => (
-        <article key={i} className="reply">
+        <article key={`${r.question}-${i}`} className="reply">
           <p className="reply-q">{r.question}</p>
           <p>{r.answer}</p>
           <div className="insight-meta">
             {r.verified ? <span className="checked">Fact-checked</span> : <span className="unchecked">Unverified</span>}
             {r.minute != null && <span className="team-chip">at {r.minute}'</span>}
+            <ListenButton text={r.answer} language={prefs.language} />
             {r.terms.map((t) => (
               <button key={t} className="term" onClick={() => onTerm(t)}>
                 What's "{t}"?
@@ -92,11 +134,12 @@ export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t
 }
 
 /* --------------------------------------------------------------- Coach reports */
-export function CoachView({ coach, meta, prefs, running }: {
+export function CoachView({ coach, meta, prefs, running, archived }: {
   coach: Record<string, CoachDoc>;
   meta: Metadata | null;
   prefs: Prefs;
   running: boolean;
+  archived?: boolean;
 }) {
   const [busy, setBusy] = useState<string>("");
   const order: ("home" | "away")[] = prefs.lens === "away" ? ["away", "home"] : ["home", "away"];
@@ -123,16 +166,30 @@ export function CoachView({ coach, meta, prefs, running }: {
             <article key={side} className={`coach-card side-${side}`}>
               <header>
                 <h2>{team?.name ?? side}</h2>
-                <button className="chip" disabled={!!busy || !meta} onClick={() => generate(side)}>
-                  {busy === side ? "Writing…" : doc ? "Refresh report" : running ? "Write report now" : "Write report"}
-                </button>
+                {!archived && (
+                  <button className="chip" disabled={!!busy || !meta} onClick={() => generate(side)}>
+                    {busy === side ? "Writing…" : doc ? "Refresh report" : running ? "Write report now" : "Write report"}
+                  </button>
+                )}
               </header>
-              {!doc?.report && <p className="muted">No report yet. It arrives at half-time.</p>}
+              {!doc?.report && <p className="muted">{archived ? "No report for this match." : "No report yet. It arrives at half-time."}</p>}
               {doc?.report && (
                 <>
                   <h3>{doc.report.headline}</h3>
-                  <p className="muted">
-                    At {doc.minute}' · {doc.verified ? "numbers fact-checked" : "unverified"}
+                  <p className="muted coach-meta">
+                    {doc.kind === "half_time" ? "Half-time report" : `Report at ${doc.minute}'`} ·{" "}
+                    {doc.verified ? (
+                      <span className="checked">Numbers fact-checked</span>
+                    ) : (
+                      <span className="unchecked" title="At least one number in this report could not be matched to the stats engine">
+                        Some numbers unverified
+                      </span>
+                    )}{" "}
+                    <ListenButton
+                      language="en"
+                      label="Listen"
+                      text={[doc.report.headline, ...doc.report.changes.map((c, i) => `Change ${i + 1}: ${c.change}`)].join(". ")}
+                    />
                   </p>
                   <h4>Working</h4>
                   <ul>{doc.report.working.map((w, i) => <li key={i}>{w}</li>)}</ul>
@@ -218,30 +275,6 @@ export function StoryChart({ history, events, overlays, meta, compact }: {
       </figcaption>
     </figure>
   );
-}
-
-/* --------------------------------------------------------------- Audio */
-export async function playAudio(text: string, language: string): Promise<"azure" | "browser" | "none"> {
-  try {
-    const r = await fetch("/api/speech", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text, language }),
-    });
-    if (r.status === 200) {
-      const url = URL.createObjectURL(await r.blob());
-      await new Audio(url).play();
-      return "azure";
-    }
-  } catch {
-    /* fall through to the browser voice */
-  }
-  if (!("speechSynthesis" in window)) return "none";
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = language === "hi" ? "hi-IN" : language === "es" ? "es-ES" : "en-GB";
-  window.speechSynthesis.speak(u);
-  return "browser";
 }
 
 export const languageName = (l: string) => LANG_NAMES[l] ?? l;
