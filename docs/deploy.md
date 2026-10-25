@@ -40,6 +40,11 @@ and tick **Stream through Azure Event Hubs** to send the match through the cloud
 The app runs a single always-on replica. With serverless Cosmos DB and a Standard Event Hubs namespace the
 cost is a few dollars a day, covered by free credit. When you are finished:
 
+Do **not** run `azd down` here: the infrastructure is deployed into the resource group that also holds your
+Foundry resource. To clean up, delete only what azd created. Every one of those names ends with the same
+token (for example `ca-gallery-abc123`):
+
 ```bash
-azd down        # removes everything azd created (keeps the Foundry resource)
+az resource list -g rg-the-gallery --query "[?contains(name,'gallery-') && !contains(name,'foundry')].{name:name,type:type}" -o table
+# check the list, then delete those resources in the portal (or with az resource delete --ids ...)
 ```
