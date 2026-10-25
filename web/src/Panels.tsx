@@ -166,9 +166,13 @@ export function PlayerCard({
         </dd>
         <dt>Avg pass difficulty</dt>
         <dd>{p.avg_pass_difficulty ?? "–"}</dd>
-        <dt>Shots / xG</dt>
+        <dt>Shots</dt>
+        <dd>{p.shots}</dd>
+        <dt>Shots on target</dt>
+        <dd>{p.shots_on_target ?? "–"}</dd>
+        <dt>Goals / xG</dt>
         <dd>
-          {p.shots} / {p.xg}
+          {p.goals ?? 0} / {p.xg}
         </dd>
         {heatSeconds ? (
           <>

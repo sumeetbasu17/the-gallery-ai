@@ -51,6 +51,7 @@ class PlayerStats:
     difficulty_sum: int = 0
     elite_passes: int = 0
     shots: int = 0
+    on_target: int = 0
     xg: float = 0.0
     goals: int = 0
     distance_m: float = 0.0
@@ -75,6 +76,8 @@ class TeamStats:
     possession_s: float = 0.0
     fouls: int = 0
     cards: int = 0
+    tackles: int = 0
+    interceptions: int = 0
 
 
 @dataclass
@@ -186,6 +189,10 @@ class MatchState:
                  Evidence(metric="score_away", value=self.score["away"])]))
         elif t == EventType.FOUL and side:
             self.teams[side].fouls += 1
+        elif t == EventType.TACKLE and side:
+            self.teams[side].tackles += 1
+        elif t == EventType.INTERCEPTION and side:
+            self.teams[side].interceptions += 1
         elif t == EventType.CARD and side:
             self.teams[side].cards += 1
             out.append(self._signal(SignalType.CARD, f"Yellow card for {self.name(ev.player_id)} "
@@ -255,6 +262,7 @@ class MatchState:
         ts.xg += xg
         if ev.outcome in ("on_target", "saved", "goal"):
             ts.on_target += 1
+            ps.on_target += 1
         out: list[Signal] = []
         speed = ev.ball_speed_kmh or 0.0
         ev_list = [Evidence(metric="xg", value=round(xg, 2)), Evidence(metric="shot_speed_kmh", value=speed),
@@ -542,7 +550,7 @@ class MatchState:
             "passes": ps.passes, "pass_completion_pct": round(100 * ps.completed / ps.passes) if ps.passes else None,
             "avg_pass_difficulty": round(ps.difficulty_sum / ps.passes) if ps.passes else None,
             "elite_passes": ps.elite_passes, "best_pass_streak": ps.best_streak,
-            "shots": ps.shots, "xg": round(ps.xg, 2), "goals": ps.goals,
+            "shots": ps.shots, "shots_on_target": ps.on_target, "xg": round(ps.xg, 2), "goals": ps.goals,
             "distance_km": round(ps.distance_m / 1000, 2), "top_speed_kmh": round(ps.top_speed_kmh, 1),
             "sprints": ps.sprints,
         }
@@ -554,6 +562,7 @@ class MatchState:
                 "goals": t.goals, "shots": t.shots, "on_target": t.on_target, "xg": round(t.xg, 2),
                 "passes": t.passes, "pass_completion_pct": round(100 * t.completed / t.passes) if t.passes else None,
                 "possession_pct": round(100 * t.possession_s / total_pos), "fouls": t.fouls, "cards": t.cards,
+                "tackles": t.tackles, "interceptions": t.interceptions,
                 "block": self.shape[s].block, "width": self.shape[s].width,
             } for s, t in self.teams.items()
         }

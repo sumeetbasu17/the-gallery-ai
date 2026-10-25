@@ -128,6 +128,7 @@ function reducer(state: MatchState, action: Action): MatchState {
       scenario: d.scenario ? { title: d.scenario.title, storyline: d.scenario.storyline } : null,
       archiveId: d.id,
       players: d.players ?? {},
+      teams: d.teams ?? {},
       liveStatus: state.viewing ? state.liveStatus : state.status,
       viewing: { id: d.id, title: d.title, ended: d.ended, startedAt: d.started_at },
     };

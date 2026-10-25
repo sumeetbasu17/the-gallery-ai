@@ -10,7 +10,7 @@ import {
   Producer,
   RecapView,
 } from "./Panels";
-import { AskPundit, CoachView, StoryChart } from "./Extras";
+import { AskPundit, CoachView, StoryChart, TeamStats } from "./Extras";
 import { Pitch, type PlayerStats } from "./Pitch";
 import { HighlightsReel, useReplay } from "./Replay";
 import { NARRATIVE, pickVariant, playerName } from "./lib";
@@ -439,6 +439,7 @@ export default function App() {
                 compact
               />
             )}
+            <TeamStats teams={state.teams} meta={meta} final={!state.running} />
           </div>
           <aside className="stage-side" aria-label="Insights">
             {!viewing && (
@@ -495,12 +496,15 @@ export default function App() {
             />
           }
           chart={
-            <StoryChart
-              history={state.history}
-              events={state.events}
-              overlays={state.overlays}
-              meta={meta}
-            />
+            <>
+              <StoryChart
+                history={state.history}
+                events={state.events}
+                overlays={state.overlays}
+                meta={meta}
+              />
+              <TeamStats teams={state.teams} meta={meta} final />
+            </>
           }
         />
       )}

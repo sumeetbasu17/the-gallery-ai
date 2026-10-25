@@ -1,19 +1,55 @@
 import { useEffect, useState } from "react";
-import type { CoachDoc, HistoryPoint, MatchEvent, Metadata, Overlay, Prefs, PunditReply } from "./types";
+import type {
+  CoachDoc,
+  HistoryPoint,
+  MatchEvent,
+  Metadata,
+  Overlay,
+  Prefs,
+  PunditReply,
+  TeamSummary,
+} from "./types";
 import { LANG_NAMES } from "./lib";
 import { onSpeaking, say, stopSpeaking } from "./audio";
 
 /* --------------------------------------------------------------- Ask the pundit */
 const SUGGESTIONS: Record<string, string[]> = {
-  en: ["Why is this game so open?", "Who has been the best passer?", "Is the press working?", "Who is more likely to win?"],
-  hi: ["यह मैच इतना खुला क्यों है?", "सबसे अच्छा पासर कौन रहा है?", "क्या प्रेसिंग काम कर रही है?", "कौन जीत सकता है?"],
-  es: ["¿Por qué el partido está tan abierto?", "¿Quién ha sido el mejor pasador?", "¿Está funcionando la presión?", "¿Quién tiene más opciones de ganar?"],
+  en: [
+    "Why is this game so open?",
+    "Who has been the best passer?",
+    "Is the press working?",
+    "Who is more likely to win?",
+  ],
+  hi: [
+    "यह मैच इतना खुला क्यों है?",
+    "सबसे अच्छा पासर कौन रहा है?",
+    "क्या प्रेसिंग काम कर रही है?",
+    "कौन जीत सकता है?",
+  ],
+  es: [
+    "¿Por qué el partido está tan abierto?",
+    "¿Quién ha sido el mejor pasador?",
+    "¿Está funcionando la presión?",
+    "¿Quién tiene más opciones de ganar?",
+  ],
 };
 
 /** A small play/stop button for any text, in the viewer's language. */
-export function ListenButton({ text, language, label = "Listen" }: { text: string; language: string; label?: string }) {
+export function ListenButton({
+  text,
+  language,
+  label = "Listen",
+}: {
+  text: string;
+  language: string;
+  label?: string;
+}) {
   const [mine, setMine] = useState(false);
-  useEffect(() => onSpeaking((speaking, playing) => setMine(speaking && playing === text)), [text]);
+  useEffect(
+    () =>
+      onSpeaking((speaking, playing) => setMine(speaking && playing === text)),
+    [text],
+  );
   return (
     <button
       type="button"
@@ -33,7 +69,15 @@ export function ListenButton({ text, language, label = "Listen" }: { text: strin
   );
 }
 
-export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t: string) => void; enabled: boolean }) {
+export function AskPundit({
+  prefs,
+  onTerm,
+  enabled,
+}: {
+  prefs: Prefs;
+  onTerm: (t: string) => void;
+  enabled: boolean;
+}) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -58,7 +102,11 @@ export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t
       setReplies((cur) => [{ question: text, ...d }, ...cur].slice(0, 5));
       setQ("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The pundit couldn't answer. Try again.");
+      setError(
+        e instanceof Error
+          ? e.message
+          : "The pundit couldn't answer. Try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -79,7 +127,11 @@ export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t
             value={q}
             maxLength={300}
             disabled={!enabled}
-            placeholder={enabled ? "Why can't Riverside break them down?" : "Available once the match starts"}
+            placeholder={
+              enabled
+                ? "Why can't Riverside break them down?"
+                : "Available once the match starts"
+            }
             onChange={(e) => {
               setQ(e.target.value);
               setError("");
@@ -93,7 +145,13 @@ export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t
         {enabled && (
           <div className="chips">
             {(SUGGESTIONS[prefs.language] ?? SUGGESTIONS.en).map((s) => (
-              <button type="button" key={s} className="chip" onClick={() => ask(s)} disabled={busy}>
+              <button
+                type="button"
+                key={s}
+                className="chip"
+                onClick={() => ask(s)}
+                disabled={busy}
+              >
                 {s}
               </button>
             ))}
@@ -117,8 +175,14 @@ export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t
           <p className="reply-q">{r.question}</p>
           <p>{r.answer}</p>
           <div className="insight-meta">
-            {r.verified ? <span className="checked">Fact-checked</span> : <span className="unchecked">Unverified</span>}
-            {r.minute != null && <span className="team-chip">at {r.minute}'</span>}
+            {r.verified ? (
+              <span className="checked">Fact-checked</span>
+            ) : (
+              <span className="unchecked">Unverified</span>
+            )}
+            {r.minute != null && (
+              <span className="team-chip">at {r.minute}'</span>
+            )}
             <ListenButton text={r.answer} language={prefs.language} />
             {r.terms.map((t) => (
               <button key={t} className="term" onClick={() => onTerm(t)}>
@@ -133,7 +197,13 @@ export function AskPundit({ prefs, onTerm, enabled }: { prefs: Prefs; onTerm: (t
 }
 
 /* --------------------------------------------------------------- Coach reports */
-export function CoachView({ coach, meta, prefs, running, archived }: {
+export function CoachView({
+  coach,
+  meta,
+  prefs,
+  running,
+  archived,
+}: {
   coach: Record<string, CoachDoc>;
   meta: Metadata | null;
   prefs: Prefs;
@@ -141,7 +211,8 @@ export function CoachView({ coach, meta, prefs, running, archived }: {
   archived?: boolean;
 }) {
   const [busy, setBusy] = useState<string>("");
-  const order: ("home" | "away")[] = prefs.lens === "away" ? ["away", "home"] : ["home", "away"];
+  const order: ("home" | "away")[] =
+    prefs.lens === "away" ? ["away", "home"] : ["home", "away"];
   const generate = async (side: string) => {
     setBusy(side);
     try {
@@ -153,9 +224,10 @@ export function CoachView({ coach, meta, prefs, running, archived }: {
   return (
     <div className="coach">
       <p className="producer-intro">
-        A first-team analyst agent studies the match through the same tools and writes what's working, what isn't, and
-        three changes for each club's staff. Reports arrive automatically at half-time; you can ask for a fresh one any
-        time.
+        A first-team analyst agent studies the match through the same tools and
+        writes what's working, what isn't, and three changes for each club's
+        staff. Reports arrive automatically at half-time; you can ask for a
+        fresh one any time.
       </p>
       <div className="coach-grid">
         {order.map((side) => {
@@ -166,34 +238,69 @@ export function CoachView({ coach, meta, prefs, running, archived }: {
               <header>
                 <h2>{team?.name ?? side}</h2>
                 {!archived && (
-                  <button className="chip" disabled={!!busy || !meta} onClick={() => generate(side)}>
-                    {busy === side ? "Writing…" : doc ? "Refresh report" : running ? "Write report now" : "Write report"}
+                  <button
+                    className="chip"
+                    disabled={!!busy || !meta}
+                    onClick={() => generate(side)}
+                  >
+                    {busy === side
+                      ? "Writing…"
+                      : doc
+                        ? "Refresh report"
+                        : running
+                          ? "Write report now"
+                          : "Write report"}
                   </button>
                 )}
               </header>
-              {!doc?.report && <p className="muted">{archived ? "No report for this match." : "No report yet. It arrives at half-time."}</p>}
+              {!doc?.report && (
+                <p className="muted">
+                  {archived
+                    ? "No report for this match."
+                    : "No report yet. It arrives at half-time."}
+                </p>
+              )}
               {doc?.report && (
                 <>
                   <h3>{doc.report.headline}</h3>
                   <p className="muted coach-meta">
-                    {doc.kind === "half_time" ? "Half-time report" : `Report at ${doc.minute}'`} ·{" "}
+                    {doc.kind === "half_time"
+                      ? "Half-time report"
+                      : `Report at ${doc.minute}'`}{" "}
+                    ·{" "}
                     {doc.verified ? (
                       <span className="checked">Numbers fact-checked</span>
                     ) : (
-                      <span className="unchecked" title="At least one number in this report could not be matched to the stats engine">
+                      <span
+                        className="unchecked"
+                        title="At least one number in this report could not be matched to the stats engine"
+                      >
                         Some numbers unverified
                       </span>
                     )}{" "}
                     <ListenButton
                       language="en"
                       label="Listen"
-                      text={[doc.report.headline, ...doc.report.changes.map((c, i) => `Change ${i + 1}: ${c.change}`)].join(". ")}
+                      text={[
+                        doc.report.headline,
+                        ...doc.report.changes.map(
+                          (c, i) => `Change ${i + 1}: ${c.change}`,
+                        ),
+                      ].join(". ")}
                     />
                   </p>
                   <h4>Working</h4>
-                  <ul>{doc.report.working.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                  <ul>
+                    {doc.report.working.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
                   <h4>Not working</h4>
-                  <ul>{doc.report.not_working.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                  <ul>
+                    {doc.report.not_working.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
                   <h4>Three changes to consider</h4>
                   <ol className="changes">
                     {doc.report.changes.map((c, i) => (
@@ -214,7 +321,13 @@ export function CoachView({ coach, meta, prefs, running, archived }: {
 }
 
 /* --------------------------------------------------------------- Match story chart */
-export function StoryChart({ history, events, overlays, meta, compact }: {
+export function StoryChart({
+  history,
+  events,
+  overlays,
+  meta,
+  compact,
+}: {
   history: HistoryPoint[];
   events: MatchEvent[];
   overlays: Overlay[];
@@ -222,7 +335,11 @@ export function StoryChart({ history, events, overlays, meta, compact }: {
   compact?: boolean;
 }) {
   if (!meta || history.length < 2) {
-    return <p className="muted">The match story chart draws itself as the game goes on.</p>;
+    return (
+      <p className="muted">
+        The match story chart draws itself as the game goes on.
+      </p>
+    );
   }
   const W = 640;
   const H = compact ? 130 : 220;
@@ -231,15 +348,30 @@ export function StoryChart({ history, events, overlays, meta, compact }: {
   const x = (m: number) => pad.l + (m / maxMin) * (W - pad.l - pad.r);
   const y = (v: number) => pad.t + (1 - v / 100) * (H - pad.t - pad.b);
   const line = (key: "home" | "away" | "draw") =>
-    history.map((p, i) => `${i ? "L" : "M"}${x(p.minute).toFixed(1)} ${y(p[key]).toFixed(1)}`).join(" ");
+    history
+      .map(
+        (p, i) =>
+          `${i ? "L" : "M"}${x(p.minute).toFixed(1)} ${y(p[key]).toFixed(1)}`,
+      )
+      .join(" ");
   const goals = events.filter((e) => e.type === "goal");
   const shifts = overlays.filter((o) => o.kind === "tactical_shift");
   return (
     <figure className="story-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Win probability across the match">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label="Win probability across the match"
+      >
         {[0, 50, 100].map((v) => (
           <g key={v}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} className="grid" />
+            <line
+              x1={pad.l}
+              x2={W - pad.r}
+              y1={y(v)}
+              y2={y(v)}
+              className="grid"
+            />
             <text x={pad.l - 6} y={y(v) + 4} textAnchor="end" className="axis">
               {v}%
             </text>
@@ -251,7 +383,14 @@ export function StoryChart({ history, events, overlays, meta, compact }: {
           </text>
         ))}
         {shifts.map((o) => (
-          <line key={o.overlay_id} x1={x(o.minute)} x2={x(o.minute)} y1={pad.t} y2={H - pad.b} className="shift-mark">
+          <line
+            key={o.overlay_id}
+            x1={x(o.minute)}
+            x2={x(o.minute)}
+            y1={pad.t}
+            y2={H - pad.b}
+            className="shift-mark"
+          >
             <title>{`${o.minute}' ${o.headline}`}</title>
           </line>
         ))}
@@ -260,7 +399,10 @@ export function StoryChart({ history, events, overlays, meta, compact }: {
         <path d={line("away")} className="wp-line away" />
         {goals.map((g, i) => (
           <g key={i} transform={`translate(${x(g.minute)} ${pad.t + 2})`}>
-            <circle r={5} className={g.side === "home" ? "goal-home" : "goal-away"} />
+            <circle
+              r={5}
+              className={g.side === "home" ? "goal-home" : "goal-away"}
+            />
             <title>{`${g.minute}' goal: ${g.player ?? ""}`}</title>
           </g>
         ))}
@@ -277,3 +419,82 @@ export function StoryChart({ history, events, overlays, meta, compact }: {
 }
 
 export const languageName = (l: string) => LANG_NAMES[l] ?? l;
+
+/* --------------------------------------------------------------- Team stats */
+type Row = {
+  label: string;
+  get: (t: TeamSummary) => number | null | undefined;
+  fmt?: (v: number) => string;
+  lowerIsBetter?: boolean;
+};
+const ROWS: Row[] = [
+  { label: "Shots", get: (t) => t.shots },
+  { label: "Shots on target", get: (t) => t.on_target },
+  { label: "Expected goals (xG)", get: (t) => t.xg, fmt: (v) => v.toFixed(2) },
+  { label: "Possession", get: (t) => t.possession_pct, fmt: (v) => `${v}%` },
+  { label: "Passes", get: (t) => t.passes },
+  {
+    label: "Pass accuracy",
+    get: (t) => t.pass_completion_pct,
+    fmt: (v) => `${v}%`,
+  },
+  { label: "Tackles", get: (t) => t.tackles },
+  { label: "Fouls", get: (t) => t.fouls, lowerIsBetter: true },
+  { label: "Yellow cards", get: (t) => t.cards, lowerIsBetter: true },
+];
+
+/** The familiar match-centre stats table, live during the match and final at full time. */
+export function TeamStats({
+  teams,
+  meta,
+  final,
+}: {
+  teams: Record<string, TeamSummary>;
+  meta: Metadata | null;
+  final?: boolean;
+}) {
+  if (!meta) return null;
+  const h = teams[meta.home.name];
+  const a = teams[meta.away.name];
+  if (!h || !a) return null;
+  return (
+    <section className="team-stats" aria-label="Team stats">
+      <header>
+        <span className="ts-team home">{meta.home.short_name}</span>
+        <h4>{final ? "Team stats · full time" : "Team stats · live"}</h4>
+        <span className="ts-team away">{meta.away.short_name}</span>
+      </header>
+      <table>
+        <tbody>
+          {ROWS.map((r) => {
+            const hv = r.get(h);
+            const av = r.get(a);
+            if (hv == null && av == null) return null;
+            const show = (v: number | null | undefined) =>
+              v == null ? "–" : r.fmt ? r.fmt(v) : String(v);
+            const better = (x?: number | null, y?: number | null) =>
+              x != null &&
+              y != null &&
+              x !== y &&
+              (r.lowerIsBetter ? x < y : x > y);
+            return (
+              <tr key={r.label}>
+                <td className="num">
+                  <span className={better(hv, av) ? "lead home" : ""}>
+                    {show(hv)}
+                  </span>
+                </td>
+                <th scope="row">{r.label}</th>
+                <td className="num">
+                  <span className={better(av, hv) ? "lead away" : ""}>
+                    {show(av)}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
+  );
+}

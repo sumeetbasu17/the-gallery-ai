@@ -114,6 +114,9 @@ export interface TeamSummary {
   possession_pct: number;
   block: string | null;
   width: string | null;
+  fouls?: number;
+  cards?: number;
+  tackles?: number;
 }
 
 export interface TraceStep {
