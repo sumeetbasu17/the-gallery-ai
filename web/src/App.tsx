@@ -13,7 +13,7 @@ import {
 import { AskPundit, CoachView, StoryChart } from "./Extras";
 import { Pitch, type PlayerStats } from "./Pitch";
 import { HighlightsReel, useReplay } from "./Replay";
-import { NARRATIVE, pickVariant } from "./lib";
+import { NARRATIVE, pickVariant, playerName } from "./lib";
 import { say, stopSpeaking } from "./audio";
 import type { Overlay, Prefs } from "./types";
 import { useMatch } from "./useMatch";
@@ -41,6 +41,33 @@ function loadPrefs(): Prefs {
 }
 
 type Tab = "live" | "coach" | "producer" | "recap" | "matches";
+
+function useHeatmap(id: string, archiveId: string | null, live: boolean) {
+  const [heat, setHeat] = useState<{
+    cols: number;
+    rows: number;
+    grid: number[][];
+    seconds: number;
+  } | null>(null);
+  useEffect(() => {
+    setHeat(null);
+    if (!id) return;
+    let alive = true;
+    const q = archiveId ? `?match=${encodeURIComponent(archiveId)}` : "";
+    const load = () =>
+      fetch(`/api/heatmap/${encodeURIComponent(id)}${q}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => alive && setHeat(d && d.seconds > 0 ? d : null))
+        .catch(() => undefined);
+    load();
+    const t = live ? window.setInterval(load, 20000) : undefined;
+    return () => {
+      alive = false;
+      window.clearInterval(t);
+    };
+  }, [id, archiveId, live]);
+  return heat;
+}
 
 function usePlayerStats(id: string, live: boolean): PlayerStats | null {
   const [p, setP] = useState<PlayerStats | null>(null);
@@ -76,7 +103,18 @@ export default function App() {
   const replay = useReplay(state.archiveId, !!viewing);
   const liveStats = usePlayerStats(
     prefs.playerCam,
-    !viewing && (state.running || !!state.frame),
+    !viewing && !!state.metadata,
+  );
+  const heat = useHeatmap(
+    prefs.playerCam,
+    viewing ? viewing.id : null,
+    !viewing && state.running,
+  );
+  const camEvents = state.events.filter(
+    (e) =>
+      prefs.playerCam &&
+      e.player &&
+      e.player === playerName(state.metadata, prefs.playerCam),
   );
   const camStats = viewing
     ? ((state.players[prefs.playerCam] as PlayerStats | undefined) ?? null)
@@ -371,10 +409,14 @@ export default function App() {
               onExitReplay={replay.active ? replay.stop : undefined}
               exitLabel={viewing ? "Close replay" : "Back to live"}
               camStats={camStats}
+              heat={replay.active ? null : heat}
+              emptyCompact={!!heat}
               onToggle3d={() => set({ view3d: !prefs.view3d })}
               emptyText={
                 viewing
-                  ? "Press “Show me” on any moment to replay it on the pitch."
+                  ? heat
+                    ? `${playerName(meta, prefs.playerCam)}'s heatmap for the whole match. Press “Show me” on a moment to replay it.`
+                    : "Press “Show me” on any moment to replay it on the pitch, or pick a player to see their heatmap."
                   : undefined
               }
             />
@@ -400,16 +442,21 @@ export default function App() {
           </div>
           <aside className="stage-side" aria-label="Insights">
             {!viewing && (
-              <AskPundit
-                prefs={prefs}
-                onTerm={setTerm}
-                enabled={!!meta && state.running}
-              />
+              <AskPundit prefs={prefs} onTerm={setTerm} enabled={!!meta} />
             )}
             {prefs.playerCam && (
               <PlayerCard
                 p={camStats as Record<string, any> | null}
-                title={viewing ? "Full match" : "Live"}
+                title={
+                  viewing ? "Full match" : state.running ? "Live" : "Full match"
+                }
+                events={camEvents}
+                heatSeconds={heat?.seconds}
+                missing={
+                  viewing && !camStats
+                    ? "Detailed stats weren't saved for this older match; the heatmap and moments still work."
+                    : undefined
+                }
               />
             )}
             <Feed
@@ -419,6 +466,7 @@ export default function App() {
               onTerm={setTerm}
               onReplay={showMe}
               replaying={replay.active?.overlay_id ?? null}
+              onClearPlayer={() => set({ playerCam: "" })}
             />
           </aside>
         </div>

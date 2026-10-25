@@ -18,6 +18,25 @@ interface Props {
   onTerm: (term: string) => void;
   onReplay?: (o: Overlay) => void;
   replaying?: string | null;
+  onClearPlayer?: () => void;
+}
+
+/** Does this moment involve the player: tagged with them, or the crew's story names them? */
+function involves(o: Overlay, id: string, name: string): boolean {
+  if (o.player_id === id) return true;
+  if (!name || !NARRATIVE.has(o.kind)) return false;
+  const surname = name.split(" ").slice(-1)[0];
+  const texts = [
+    o.headline,
+    o.body ?? "",
+    ...Object.values(o.variants).flatMap((v) =>
+      Object.values(v).flatMap((x) => [x.headline, x.body]),
+    ),
+  ];
+  return texts.some(
+    (t) =>
+      t && (t.includes(name) || (surname.length > 3 && t.includes(surname))),
+  );
 }
 
 const TAG_KINDS = new Set([
@@ -34,12 +53,13 @@ export function Feed({
   onTerm,
   onReplay,
   replaying,
+  onClearPlayer,
 }: Props) {
+  const camName = playerName(meta, prefs.playerCam);
   const visible = overlays
     .filter((o) => {
+      if (prefs.playerCam) return involves(o, prefs.playerCam, camName);
       if (NARRATIVE.has(o.kind)) return true;
-      if (prefs.playerCam)
-        return o.player_id === prefs.playerCam || o.kind === "milestone";
       if (prefs.audience === "casual")
         return o.kind === "milestone" && o.priority >= 45;
       return TAG_KINDS.has(o.kind);
@@ -50,7 +70,7 @@ export function Feed({
     .map(([o]) => o);
 
   const hint = prefs.playerCam
-    ? "Showing the crew's insights plus every data tag for your player."
+    ? `${camName}'s match: ${visible.length} moment${visible.length === 1 ? "" : "s"} involving them (goals, cards, data tags and every insight that names them).`
     : prefs.audience === "casual"
       ? "Casual: the big moments only. The Match Director airs at most three every five minutes, like a real broadcast. Switch to Analyst for every data tag."
       : "Analyst: every insight plus live data tags (pass difficulty, sprints, shot speed, passing streaks).";
@@ -62,13 +82,29 @@ export function Feed({
           Insights land here as the crew spots them. Tactical changes usually
           start showing after the first 15 minutes.
         </p>
-        <p className="feed-hint">{hint}</p>
+        <p className="feed-hint">
+          {prefs.playerCam
+            ? `Nothing involving ${camName} yet. Their live stats and heatmap are above.`
+            : hint}
+          {prefs.playerCam && onClearPlayer && (
+            <button className="term" onClick={onClearPlayer}>
+              Show all moments
+            </button>
+          )}
+        </p>
       </div>
     );
   }
   return (
     <>
-      <p className="feed-hint">{hint}</p>
+      <p className="feed-hint">
+        {hint}{" "}
+        {prefs.playerCam && onClearPlayer && (
+          <button className="term" onClick={onClearPlayer}>
+            Show all moments
+          </button>
+        )}
+      </p>
       <ol className="feed" aria-live="polite">
         {visible.map((o) =>
           NARRATIVE.has(o.kind) ? (

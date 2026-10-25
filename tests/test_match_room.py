@@ -66,3 +66,12 @@ def test_pause_end_archive_and_replay(client, tmp_path):
     assert live and 60 <= live[0][0] <= 70
     regen = client.get(f"/api/replay?from=60&to=70&match={archive_id}").json()["frames"]
     assert regen[0] == live[0]  # the seed regenerates the exact same frames
+
+
+def test_heatmap(client):
+    from match_room.app import room
+
+    room.frames = [[s, 50.0, 30.0, [["RVA9", 80.0 + (s % 3), 34.0]]] for s in range(120)]
+    hm = client.get("/api/heatmap/RVA9").json()
+    assert hm["seconds"] == 120 and max(max(r) for r in hm["grid"]) == 1.0
+    assert hm["grid"][int(34 / 68 * 14)][int(80 / 105 * 21)] > 0

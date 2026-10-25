@@ -60,7 +60,7 @@ export function Controls({
             </select>
           </label>
           <label>
-            <span>Player cam</span>
+            <span>Follow player</span>
             <select
               value={prefs.playerCam}
               onChange={(e) => set({ playerCam: e.target.value })}
@@ -129,11 +129,23 @@ export function Controls({
 export function PlayerCard({
   p,
   title,
+  events = [],
+  heatSeconds,
+  missing,
 }: {
   p: Record<string, any> | null;
   title?: string;
+  events?: { type: string; minute: number }[];
+  heatSeconds?: number;
+  missing?: string;
 }) {
+  if (missing) return <p className="feed-hint">{missing}</p>;
   if (!p || p.error) return null;
+  const label: Record<string, string> = {
+    goal: "Goal",
+    card: "Yellow card",
+    substitution: "Substitution",
+  };
   return (
     <aside className="player-card" aria-label={`Player cam: ${p.player}`}>
       <h3>
@@ -158,7 +170,27 @@ export function PlayerCard({
         <dd>
           {p.shots} / {p.xg}
         </dd>
+        {heatSeconds ? (
+          <>
+            <dt>Minutes on the pitch</dt>
+            <dd>{Math.round(heatSeconds / 60)}</dd>
+          </>
+        ) : null}
       </dl>
+      {events.length > 0 && (
+        <ul className="card-events">
+          {events.map((e, i) => (
+            <li key={i}>
+              <span className="num">{e.minute}'</span> {label[e.type] ?? e.type}
+            </li>
+          ))}
+        </ul>
+      )}
+      {heatSeconds ? (
+        <p className="muted card-note">
+          The shaded squares on the pitch show where they've played.
+        </p>
+      ) : null}
     </aside>
   );
 }

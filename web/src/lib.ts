@@ -38,7 +38,16 @@ export const METRIC_LABELS: Record<string, string> = {
 
 export const NARRATIVE = new Set(["tactical_shift", "key_moment", "match_status"]);
 
+const tidy = (v: Variant): Variant => ({
+  headline: v.headline.replace(/\s*->\s*/g, " → "),
+  body: (v.body ?? "").replace(/\s*->\s*/g, " → "),
+});
+
 export function pickVariant(o: Overlay, prefs: Prefs): Variant {
+  return tidy(pickRaw(o, prefs));
+}
+
+function pickRaw(o: Overlay, prefs: Prefs): Variant {
   const lang = o.variants[prefs.language] ?? o.variants.en ?? Object.values(o.variants)[0];
   if (!lang) return { headline: o.headline, body: o.body ?? "" };
   const base = lang[prefs.audience] ?? lang.casual ?? { headline: o.headline, body: o.body ?? "" };

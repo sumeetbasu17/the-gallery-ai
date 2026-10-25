@@ -240,6 +240,15 @@ def _live_metric(metric: str):
     return None
 
 
+@app.get("/api/heatmap/{player_id}")
+async def heatmap(player_id: str, match: str = ""):
+    """Where a player has been: live match from memory, archived matches rebuilt from the seed."""
+    hm = await room.heatmap(player_id, match or None)
+    if hm is None:
+        return JSONResponse({"error": "not available"}, status_code=404)
+    return hm
+
+
 @app.get("/api/players/{player}")
 async def player(player: str):
     if room.crew is None:

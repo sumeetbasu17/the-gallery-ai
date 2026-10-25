@@ -271,14 +271,35 @@ class MatchRoom:
     # ------------------------------------------------------------ replay
     async def replay(self, start: float, end: float, archive_id: Optional[str] = None) -> Optional[list]:
         """Frames for a moment replay: from memory for the live match, regenerated from the seed otherwise."""
+        frames = await self._frames_for(archive_id)
+        return None if frames is None else clip(frames, start, end)
+
+    async def _frames_for(self, archive_id: Optional[str]):
         if not archive_id or archive_id == self.archive_id:
-            return clip(self.frames, start, end)
+            return self.frames
         doc = await self.store.get(archive_id)
         if not doc or doc.get("seed") is None:
             return None
         scenario = json.dumps(doc.get("scenario"), sort_keys=True) if doc.get("scenario") else ""
-        frames = await asyncio.to_thread(_regenerate, int(doc["seed"]), scenario)
-        return clip(frames, start, end)
+        return await asyncio.to_thread(_regenerate, int(doc["seed"]), scenario)
+
+    async def heatmap(self, player_id: str, archive_id: Optional[str] = None) -> Optional[dict]:
+        """Where a player spent the match: share of seconds in each 5 m x 5 m cell (21 x 14 grid)."""
+        frames = await self._frames_for(archive_id)
+        if frames is None:
+            return None
+        cols, rows = 21, 14
+        grid = [[0] * cols for _ in range(rows)]
+        seconds = 0
+        for f in frames:
+            for pid, x, y in f[3]:
+                if pid == player_id:
+                    grid[min(rows - 1, int(y / 68 * rows))][min(cols - 1, int(x / 105 * cols))] += 1
+                    seconds += 1
+                    break
+        peak = max((v for row in grid for v in row), default=0) or 1
+        return {"player_id": player_id, "cols": cols, "rows": rows, "seconds": seconds,
+                "grid": [[round(v / peak, 3) for v in row] for row in grid]}
 
     # ------------------------------------------------------------ ingest
     async def ingest(self, env: Envelope) -> None:
