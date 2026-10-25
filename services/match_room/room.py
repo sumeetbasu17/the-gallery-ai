@@ -85,6 +85,7 @@ class MatchRoom:
         self._paused_at: Optional[float] = None
         self._pause_total = 0.0
         self._finishing: Optional[asyncio.Task] = None
+        self._report_cache: dict[tuple, dict] = {}
 
     # ------------------------------------------------------------ viewers
     async def join(self, ws: WebSocket) -> None:
@@ -220,6 +221,7 @@ class MatchRoom:
                 pass
         self._play.set()
         await self._status(running=False, paused=False, phase="finishing")
+        self.crew.match_status = f"over: the producer stopped the match at {minute}'"
         self._finishing = asyncio.create_task(self._finish(ended="stopped", stopped_at=minute))
         return True
 
@@ -302,6 +304,71 @@ class MatchRoom:
         return {"player_id": player_id, "cols": cols, "rows": rows, "seconds": seconds,
                 "grid": [[round(v / peak, 3) for v in row] for row in grid]}
 
+    @staticmethod
+    def zones(frames, player_id: str, attacks_right: bool) -> dict[str, float]:
+        """Share of the player's time per third and channel, oriented to their own attacking direction."""
+        thirds, channels, n = [0, 0, 0], [0, 0, 0], 0
+        for f in frames:
+            for pid, x, y in f[3]:
+                if pid == player_id:
+                    if not attacks_right:
+                        x, y = 105 - x, 68 - y
+                    thirds[min(2, int(x / 35))] += 1
+                    channels[min(2, int(y / (68 / 3)))] += 1
+                    n += 1
+                    break
+        if not n:
+            return {}
+        pct = lambda v: round(100 * v / n)  # noqa: E731
+        return {"defensive_third_pct": pct(thirds[0]), "middle_third_pct": pct(thirds[1]),
+                "attacking_third_pct": pct(thirds[2]), "left_channel_pct": pct(channels[0]),
+                "central_channel_pct": pct(channels[1]), "right_channel_pct": pct(channels[2]),
+                "minutes_on_pitch": round(n / 60)}
+
+    async def player_report(self, player_id: str, archive_id: Optional[str], language: str) -> Optional[dict]:
+        from agents.player_report import write_player_report
+
+        live = not archive_id or archive_id == self.archive_id
+        if live:
+            s = self.state
+            if s.meta is None or player_id not in s.players:
+                return None
+            meta, stats, score, events = s.meta.model_dump(mode="json"), s.player_summary(player_id), s.score, \
+                self.events_log
+            overlays = [o.model_dump(mode="json") for o in (self.crew.board.overlays if self.crew else [])]
+            status = (f"live, minute {s.minute}" if self.status.get("running")
+                      else self.crew.match_status if self.crew else "over")
+            key = (self.archive_id, player_id, s.minute, language)
+        else:
+            doc = await self.store.get(archive_id)
+            if not doc or player_id not in (doc.get("players") or {}):
+                return None
+            meta, stats, score, events = doc["metadata"], doc["players"][player_id], doc["score"], doc.get("events", [])
+            overlays = doc.get("overlays", [])
+            status = ("over: full time" if doc.get("ended") == "full_time"
+                      else f"over: stopped by the producer at {doc.get('minute')}'")
+            key = (archive_id, player_id, -1, language)
+        if key in self._report_cache:
+            return self._report_cache[key]
+        side = "home" if any(p["id"] == player_id for p in meta["home"]["players"]) else "away"
+        frames = await self._frames_for(archive_id)
+        name = stats.get("player", "")
+        surname = name.split(" ")[-1]
+        moments = [f"{o['minute']}' {o['headline']}: {o.get('body') or ''}" for o in overlays
+                   if o.get("player_id") == player_id or (o["kind"] in ("tactical_shift", "key_moment")
+                                                          and surname and surname in f"{o['headline']} {o.get('body')}")]
+        facts = {"status": status, "team": meta[side]["name"],
+                 "score": {meta["home"]["name"]: score["home"], meta["away"]["name"]: score["away"]},
+                 "stats": stats, "zones": self.zones(frames or [], player_id, side == "home"),
+                 "events": [{"type": e["type"], "minute": e["minute"]} for e in events if e.get("player") == name],
+                 "moments": moments[-8:]}
+        roster = {p["name"] for t in (meta["home"], meta["away"]) for p in t["players"]}
+        report = await write_player_report(self.settings, facts, language, roster,
+                                           {meta["home"]["name"], meta["away"]["name"]})
+        report = {**report, "player_id": player_id, "status": status, "zones": facts["zones"]}
+        self._report_cache[key] = report
+        return report
+
     # ------------------------------------------------------------ ingest
     async def ingest(self, env: Envelope) -> None:
         signals = self.state.ingest(env)
@@ -312,6 +379,8 @@ class MatchRoom:
         elif env.kind == "event":
             ev = env.event
             self.status["clock"] = ev.second
+            if ev.type.value == "full_time" and self.crew:
+                self.crew.match_status = "over: full time, the match has finished"
             if ev.type.value in KEY_EVENTS:
                 doc = {**ev.model_dump(mode="json"), "score": dict(self.state.score),
                        "player": self.state.name(ev.player_id)}

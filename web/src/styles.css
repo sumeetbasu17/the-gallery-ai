@@ -392,3 +392,13 @@ button, select, input { font: inherit; color: inherit; }
 .team-stats .lead.home { background: var(--home); color: #04213a; }
 .team-stats .lead.away { background: var(--away); color: #3a0613; }
 .recap .team-stats { margin: 18px 0; }
+.player-report { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--rule); }
+.player-report h4 { margin: 2px 0 4px; font: 700 18px/1.2 var(--display); color: var(--chalk); }
+.player-report p { margin: 0 0 8px; }
+.player-report .card-kicker { margin: 0; display: block; }
+.zones { display: grid; gap: 4px; margin: 6px 0 8px; font-size: 13px; }
+.zone { display: grid; grid-template-columns: 96px 1fr 40px; gap: 8px; align-items: center; color: var(--muted); }
+.zone-track { height: 6px; background: var(--stand-2); border-radius: 3px; overflow: hidden; }
+.zone-track span { display: block; height: 100%; background: var(--card); }
+.zone .num { text-align: right; color: var(--chalk); }
+.heat-label { font: 600 2.4px var(--display); fill: var(--chalk); opacity: .75; letter-spacing: .05em; }

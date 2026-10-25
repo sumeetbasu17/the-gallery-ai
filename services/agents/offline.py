@@ -142,6 +142,9 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
         facts = d.get("facts", {})
         score = " ".join(f"{k} {v}" for k, v in facts.get("snapshot", {}).get("score", {}).items())
         label = facts.get("meters", {}).get("control_vs_chaos", {}).get("label", "contested")
+        if "over" in str(d.get("STATUS", "")):
+            return {"answer": f"The match finished {score}; overall it was {label}.", "key_numbers": [],
+                    "glossary_terms": ["control vs chaos"], "on_topic": True}
         return {"answer": f"At {d.get('minute', 0)}' the score is {score}, and the game is {label} right now.",
                 "key_numbers": [], "glossary_terms": ["control vs chaos"], "on_topic": True}
 
@@ -155,6 +158,17 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
                 "changes": [{"change": "Press higher on the opponent's first pass.", "why": "Their line is deep."},
                             {"change": "Switch play to the weak side earlier.", "why": "Space opens wide."},
                             {"change": "Keep a midfielder back in rest defence.", "why": "Protects against counters."}]}
+
+    def _playerreport(self, d, _):
+        f = d.get("FACTS", {})
+        s = f.get("stats", {})
+        name = s.get("player", "The player")
+        live = "live" in str(f.get("status", ""))
+        verb = "has made" if live else "made"
+        return {"headline": f"{name}: {s.get('passes', 0)} passes, {s.get('shots', 0)} shots",
+                "summary": f"{name} {verb} {s.get('passes', 0)} passes and had {s.get('shots', 0)} shots, "
+                           f"{s.get('shots_on_target', 0)} on target.",
+                "key_numbers": []}
 
     def _translator(self, d, _):
         rec = d.get("RECAP", {})

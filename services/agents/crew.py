@@ -148,7 +148,8 @@ class Crew:
         self._sem = asyncio.Semaphore(settings.max_parallel_moments)
         self._facts: dict[str, dict[str, Any]] = {}
         self._tasks: set[asyncio.Task] = set()
-        self.half_time_done = asyncio.Event()  # both half-time coach reports written
+        self.half_time_done = asyncio.Event()
+        self.match_status = "live"  # set to "over: ..." by the match room when the match ends  # both half-time coach reports written
 
     # ------------------------------------------------------------------ utils
     async def _emit(self, cb, payload) -> None:
@@ -482,7 +483,7 @@ class Crew:
         facts = {"snapshot": self.match_tools.get_match_snapshot(), "meters": self.match_tools.get_meters(5),
                  "win_probability": self.match_tools.win_probability()}
         payload: dict[str, Any] = {"QUESTION": question, "LANGUAGE": language, "minute": self.state.minute,
-                                   "facts": facts}
+                                   "STATUS": self.match_status, "facts": facts}
         roster, teams = self.roster(), set(self.state.team_name.values())
         result: Optional[PunditAnswer] = None
         verified = False
@@ -511,6 +512,7 @@ class Crew:
         return {"answer": result.answer, "verified": verified, "on_topic": result.on_topic,
                 "terms": glossary_terms(result.glossary_terms, result.answer),
                 "numbers": [k.model_dump() for k in result.key_numbers], "minute": self.state.minute,
+                "final": self.match_status != "live",
                 "trace": [t.model_dump() for t in trace]}
 
     # ------------------------------------------------------------ coach report

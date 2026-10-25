@@ -224,4 +224,5 @@ export interface PunditReply {
   on_topic?: boolean;
   terms: string[];
   minute?: number;
+  final?: boolean;
 }

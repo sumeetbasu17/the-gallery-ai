@@ -180,8 +180,12 @@ export function AskPundit({
             ) : (
               <span className="unchecked">Unverified</span>
             )}
-            {r.minute != null && (
-              <span className="team-chip">at {r.minute}'</span>
+            {r.final ? (
+              <span className="team-chip">after the match</span>
+            ) : (
+              r.minute != null && (
+                <span className="team-chip">at {r.minute}'</span>
+              )
             )}
             <ListenButton text={r.answer} language={prefs.language} />
             {r.terms.map((t) => (
@@ -496,5 +500,106 @@ export function TeamStats({
         </tbody>
       </table>
     </section>
+  );
+}
+
+/* --------------------------------------------------------------- Player report */
+interface Report {
+  headline: string;
+  summary: string;
+  verified: boolean;
+  status: string;
+  zones: Record<string, number>;
+}
+
+/** On-demand, fact-checked summary of one player's match, plus where they played (thirds and channels). */
+export function PlayerReportBox({
+  playerId,
+  archiveId,
+  language,
+}: {
+  playerId: string;
+  archiveId: string | null;
+  language: string;
+}) {
+  const [rep, setRep] = useState<Report | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    setRep(null);
+    setError("");
+  }, [playerId, archiveId, language]);
+  const write = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const q = new URLSearchParams({ language });
+      if (archiveId) q.set("match", archiveId);
+      const r = await fetch(
+        `/api/players/${encodeURIComponent(playerId)}/report?${q}`,
+        { method: "POST" },
+      );
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Couldn't write the report.");
+      setRep(d);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't write the report.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const z = rep?.zones ?? {};
+  const live = rep?.status.startsWith("live");
+  return (
+    <div className="player-report">
+      {!rep && (
+        <button className="chip" onClick={write} disabled={busy}>
+          {busy ? "Writing report…" : "✎ Write player report"}
+        </button>
+      )}
+      {error && <p className="field-error">{error}</p>}
+      {rep && (
+        <>
+          <p className="card-kicker">
+            {live ? "Player report · so far" : "Player report · full match"}
+          </p>
+          <h4>{rep.headline}</h4>
+          <p>{rep.summary}</p>
+          {"attacking_third_pct" in z && (
+            <div className="zones" aria-label="Where they played">
+              <ZoneBar label="Own third" v={z.defensive_third_pct} />
+              <ZoneBar label="Middle third" v={z.middle_third_pct} />
+              <ZoneBar label="Final third" v={z.attacking_third_pct} />
+            </div>
+          )}
+          <div className="insight-meta">
+            {rep.verified ? (
+              <span className="checked">Fact-checked</span>
+            ) : (
+              <span className="unchecked">Template</span>
+            )}
+            <ListenButton
+              text={`${rep.headline}. ${rep.summary}`}
+              language={language}
+            />
+            <button className="term" onClick={write} disabled={busy}>
+              {busy ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ZoneBar({ label, v }: { label: string; v: number }) {
+  return (
+    <div className="zone">
+      <span>{label}</span>
+      <span className="zone-track">
+        <span style={{ width: `${v}%` }} />
+      </span>
+      <span className="num">{v}%</span>
+    </div>
   );
 }

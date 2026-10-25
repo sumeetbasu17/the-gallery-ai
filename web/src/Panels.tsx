@@ -132,12 +132,14 @@ export function PlayerCard({
   events = [],
   heatSeconds,
   missing,
+  children,
 }: {
   p: Record<string, any> | null;
   title?: string;
   events?: { type: string; minute: number }[];
   heatSeconds?: number;
   missing?: string;
+  children?: React.ReactNode;
 }) {
   if (missing) return <p className="feed-hint">{missing}</p>;
   if (!p || p.error) return null;
@@ -195,6 +197,7 @@ export function PlayerCard({
           The shaded squares on the pitch show where they've played.
         </p>
       ) : null}
+      {children}
     </aside>
   );
 }

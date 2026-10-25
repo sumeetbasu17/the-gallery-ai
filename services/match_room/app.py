@@ -249,6 +249,16 @@ async def heatmap(player_id: str, match: str = ""):
     return hm
 
 
+@app.post("/api/players/{player_id}/report")
+async def player_report(player_id: str, match: str = "", language: str = "en"):
+    """A short, fact-checked summary of one player's match, live ("so far") or archived."""
+    lang = language if language in settings.languages else "en"
+    rep = await room.player_report(player_id, match or None, lang)
+    if rep is None:
+        return JSONResponse({"error": "No data for that player in this match."}, status_code=404)
+    return rep
+
+
 @app.get("/api/players/{player}")
 async def player(player: str):
     if room.crew is None:

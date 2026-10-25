@@ -27,6 +27,8 @@ interface Props {
   /** Where the followed player has been: normalised counts on a rows x cols grid. */
   heat?: { cols: number; rows: number; grid: number[][] } | null;
   emptyCompact?: boolean;
+  /** e.g. "Riverside attack →", drawn under the heatmap so the direction is never ambiguous. */
+  heatLabel?: string;
 }
 
 const L = 105;
@@ -53,6 +55,7 @@ export function Pitch({
   emptyText,
   heat,
   emptyCompact,
+  heatLabel,
 }: Props) {
   const homeIds = new Set(meta?.home.players.map((p) => p.id));
   const numbers = new Map<string, number>();
@@ -118,6 +121,11 @@ export function Pitch({
                 ),
               )}
             </g>
+          )}
+          {heat && heatLabel && (
+            <text x={L / 2} y={W - 2.2} textAnchor="middle" className="heat-label">
+              {heatLabel}
+            </text>
           )}
           <g className="markings">
             <rect x={0} y={0} width={L} height={W} />

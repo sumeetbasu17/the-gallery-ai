@@ -75,3 +75,20 @@ def test_heatmap(client):
     hm = client.get("/api/heatmap/RVA9").json()
     assert hm["seconds"] == 120 and max(max(r) for r in hm["grid"]) == 1.0
     assert hm["grid"][int(34 / 68 * 14)][int(80 / 105 * 21)] > 0
+
+
+def test_player_report_offline(client):
+    import time
+
+    from match_room.app import room
+
+    client.post("/api/match/start", json={"seed": 5, "speed": 120})
+    deadline = time.time() + 30
+    while room.status["clock"] < 300 and time.time() < deadline:
+        time.sleep(0.2)
+    rep = client.post("/api/players/RVA9/report?language=en").json()
+    assert rep["headline"] and rep["summary"] and "live" in rep["status"]
+    assert sum(rep["zones"][k] for k in ("defensive_third_pct", "middle_third_pct", "attacking_third_pct")) in (99, 100, 101)
+    ans = client.post("/api/ask", json={"question": "Who is the best passer?"}).json()
+    assert ans["final"] is False
+    client.post("/api/match/stop")

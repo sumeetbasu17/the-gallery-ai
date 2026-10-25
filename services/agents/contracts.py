@@ -118,3 +118,11 @@ class CoachReport(BaseModel):
 class RecapTranslation(BaseModel):
     headline: str
     paragraphs: list[str]
+
+
+class PlayerReport(BaseModel):
+    """A short, analyst-ready summary of one player's match."""
+
+    headline: str = Field(description="One line verdict, max 80 characters.")
+    summary: str = Field(description="Three or four sentences, in the requested language.")
+    key_numbers: list[KeyNumber] = Field(default_factory=list, description="Numbers used, copied from FACTS.")

@@ -10,7 +10,13 @@ import {
   Producer,
   RecapView,
 } from "./Panels";
-import { AskPundit, CoachView, StoryChart, TeamStats } from "./Extras";
+import {
+  AskPundit,
+  CoachView,
+  PlayerReportBox,
+  StoryChart,
+  TeamStats,
+} from "./Extras";
 import { Pitch, type PlayerStats } from "./Pitch";
 import { HighlightsReel, useReplay } from "./Replay";
 import { NARRATIVE, pickVariant, playerName } from "./lib";
@@ -410,6 +416,13 @@ export default function App() {
               exitLabel={viewing ? "Close replay" : "Back to live"}
               camStats={camStats}
               heat={replay.active ? null : heat}
+              heatLabel={
+                meta && prefs.playerCam
+                  ? meta.home.players.some((p) => p.id === prefs.playerCam)
+                    ? `${meta.home.short_name} attack →`
+                    : `← ${meta.away.short_name} attack`
+                  : undefined
+              }
               emptyCompact={!!heat}
               onToggle3d={() => set({ view3d: !prefs.view3d })}
               emptyText={
@@ -417,7 +430,11 @@ export default function App() {
                   ? heat
                     ? `${playerName(meta, prefs.playerCam)}'s heatmap for the whole match. Press “Show me” on a moment to replay it.`
                     : "Press “Show me” on any moment to replay it on the pitch, or pick a player to see their heatmap."
-                  : undefined
+                  : !state.running && meta
+                    ? heat
+                      ? `${playerName(meta, prefs.playerCam)}'s heatmap for the whole match. Press “Show me” on a moment to replay it.`
+                      : "Full time. Press “Show me” on any moment to replay it on the pitch."
+                    : undefined
               }
             />
             {!viewing && (
@@ -458,7 +475,13 @@ export default function App() {
                     ? "Detailed stats weren't saved for this older match; the heatmap and moments still work."
                     : undefined
                 }
-              />
+              >
+                <PlayerReportBox
+                  playerId={prefs.playerCam}
+                  archiveId={viewing ? viewing.id : null}
+                  language={prefs.language}
+                />
+              </PlayerCard>
             )}
             <Feed
               overlays={state.overlays}
