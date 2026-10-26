@@ -93,8 +93,15 @@ class SimulatedMatch:
 
 class MatchSimulator:
     def __init__(self, home: Team, away: Team, seed: int = 7, match_id: Optional[str] = None,
-                 venue: str = "Harbourside Stadium"):
+                 venue: str = "Harbourside Stadium", finishing: Optional[dict] = None,
+                 red_cards: Optional[list] = None):
+        """finishing: {"home": 1.0, "away": 1.0} scales how often chances go in (a storyline's goal count).
+        red_cards: [{"side": "home", "minute": 30}] sends a player off at the first foul from that minute."""
         self.rng = np.random.default_rng(seed)
+        self.finishing = {Side.HOME: float((finishing or {}).get("home", 1.0)),
+                          Side.AWAY: float((finishing or {}).get("away", 1.0))}
+        self.pending_reds = sorted(((int(r["minute"]), Side(r["side"])) for r in (red_cards or [])
+                                    if r.get("side") in ("home", "away")), key=lambda r: r[0])
         self.match_id = match_id or f"M{seed:05d}"
         self.metadata = MatchMetadata(match_id=self.match_id, venue=venue, home=home, away=away, seed=seed)
         self.teams = {Side.HOME: self._init_team(home), Side.AWAY: self._init_team(away)}
@@ -240,10 +247,17 @@ class MatchSimulator:
                 self._emit(EventType.PRESSURE, clock, minute, dfn.side, player_id=presser.id,
                            target_player_id=carrier.id, start=self._pt(ball), detail=extra)
                 clock += 0.6
-                if rng.random() < 0.035:  # foul
+                red_due = next((r for r in self.pending_reds if r[1] == dfn.side and minute >= r[0]), None)
+                if rng.random() < (0.3 if red_due else 0.035):  # foul
                     self._emit(EventType.FOUL, clock, minute, dfn.side, player_id=presser.id,
                                target_player_id=carrier.id, start=self._pt(ball), detail=extra)
-                    if rng.random() < 0.18:
+                    if red_due and presser.position != "GK" and len(dfn.on_pitch) > 7:
+                        self.pending_reds.remove(red_due)
+                        self._emit(EventType.CARD, clock, minute, dfn.side, player_id=presser.id,
+                                   detail={"card": "red", **extra})
+                        dfn.on_pitch.remove(presser)
+                        self._subs.append((clock, dfn.side, None, presser))
+                    elif rng.random() < 0.18:
                         self._emit(EventType.CARD, clock, minute, dfn.side, player_id=presser.id,
                                    detail={"card": "yellow", **extra})
                     clock += float(rng.uniform(15, 35))
@@ -260,11 +274,11 @@ class MatchSimulator:
                 if under_p:
                     xg = round(xg * 0.7, 3)
                 roll = rng.random()
-                if roll < xg:
+                if roll < min(0.95, xg * self.finishing[side]):
                     outcome = "goal"
-                elif roll < xg + 0.28:
+                elif roll < min(0.95, xg * self.finishing[side]) + 0.28:
                     outcome = "saved"
-                elif roll < xg + 0.48:
+                elif roll < min(0.95, xg * self.finishing[side]) + 0.48:
                     outcome = "blocked"
                 else:
                     outcome = "off_target"
@@ -435,8 +449,12 @@ class MatchSimulator:
             while si < len(subs) and subs[si][0] <= t:
                 _, sub_side, incoming, outgoing = subs[si]
                 lineup = self.teams[sub_side].on_pitch
-                lineup[lineup.index(outgoing)] = incoming
-                current[sub_side][incoming.id] = current[sub_side].pop(outgoing.id, (L / 2, 0.0))
+                if incoming is None:  # sent off
+                    lineup.remove(outgoing)
+                    current[sub_side].pop(outgoing.id, None)
+                else:
+                    lineup[lineup.index(outgoing)] = incoming
+                    current[sub_side][incoming.id] = current[sub_side].pop(outgoing.id, (L / 2, 0.0))
                 si += 1
             while ki + 1 < len(keys) and keys[ki + 1][0] <= t:
                 ki += 1

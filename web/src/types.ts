@@ -117,6 +117,7 @@ export interface TeamSummary {
   fouls?: number;
   cards?: number;
   tackles?: number;
+  red_cards?: number;
 }
 
 export interface TraceStep {
@@ -143,6 +144,7 @@ export interface Recap {
 
 export interface MatchEvent {
   type: string;
+  detail?: Record<string, unknown> | null;
   minute: number;
   side?: Side;
   player?: string;

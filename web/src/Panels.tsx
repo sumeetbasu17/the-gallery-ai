@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { AGENT_NAMES, LANG_NAMES } from "./lib";
 import { onSpeaking, say, stopSpeaking } from "./audio";
+import { MicButton } from "./Mic";
 
 /* ------------------------------------------------------------------ Controls */
 /**
@@ -136,7 +137,11 @@ export function PlayerCard({
 }: {
   p: Record<string, any> | null;
   title?: string;
-  events?: { type: string; minute: number }[];
+  events?: {
+    type: string;
+    minute: number;
+    detail?: Record<string, unknown> | null;
+  }[];
   heatSeconds?: number;
   missing?: string;
   children?: React.ReactNode;
@@ -187,7 +192,10 @@ export function PlayerCard({
         <ul className="card-events">
           {events.map((e, i) => (
             <li key={i}>
-              <span className="num">{e.minute}'</span> {label[e.type] ?? e.type}
+              <span className="num">{e.minute}'</span>{" "}
+              {e.type === "card" && e.detail?.card === "red"
+                ? "Red card"
+                : (label[e.type] ?? e.type)}
             </li>
           ))}
         </ul>
@@ -589,7 +597,11 @@ export function ArchiveList({
 export function Kickoff({
   onStart,
   onOpenArchive,
+  onCancel,
+  language = "en",
 }: {
+  onCancel?: () => void;
+  language?: string;
   onStart: (
     seed: number,
     speed: number,
@@ -599,7 +611,9 @@ export function Kickoff({
   onOpenArchive: (id: string) => void;
 }) {
   const [brief, setBrief] = useState("");
-  const [seed, setSeed] = useState(7);
+  const [seed, setSeed] = useState(() =>
+    onCancel ? Math.floor(Math.random() * 9000) + 1 : 7,
+  );
   const [speed, setSpeed] = useState(20);
   const [hub, setHub] = useState(false);
   const [hubAvailable, setHubAvailable] = useState(false);
@@ -614,6 +628,11 @@ export function Kickoff({
   }, []);
   return (
     <div className="kickoff">
+      {onCancel && (
+        <button className="chip back-link" onClick={onCancel}>
+          ← Back to the match
+        </button>
+      )}
       <h1>The Gallery</h1>
       <p className="lede">
         A crew of AI agents watches every pass, works out what matters, checks
@@ -624,19 +643,29 @@ export function Kickoff({
         Riverside Athletic v Northgate United, a synthetic match generated live.
         Clubs and players are fictional.
       </p>
-      <label className="brief">
-        <span>
+      <div className="brief">
+        <label htmlFor="brief-text">
           Storyline (optional). The Scenario Writer agent turns it into the
-          match.
-        </span>
-        <textarea
-          rows={2}
-          maxLength={400}
-          value={brief}
-          placeholder="Northgate press high early, then drop into a low block to protect a lead after the hour."
-          onChange={(e) => setBrief(e.target.value)}
-        />
-      </label>
+          match: each team's tactics, the final score and any red cards. It
+          doesn't script who scores or when.
+        </label>
+        <div className="brief-row">
+          <textarea
+            id="brief-text"
+            rows={2}
+            maxLength={400}
+            value={brief}
+            placeholder="A 5-4 thriller: Northgate press high early, a first-half red card for Riverside, then Northgate sit deep after the hour."
+            onChange={(e) => setBrief(e.target.value)}
+          />
+          <MicButton
+            language={language}
+            value={brief}
+            label="Speak"
+            onText={setBrief}
+          />
+        </div>
+      </div>
       <div className="kickoff-form">
         <label>
           <span>Match seed</span>

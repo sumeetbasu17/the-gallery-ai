@@ -78,3 +78,58 @@ def ground_truth(home: Team, away: Team) -> list[dict[str, Any]]:
                            "press": [prev.press_intensity, t.press_intensity]})
             prev = t
     return labels
+
+
+# ---------------------------------------------------------------- storyline outcomes
+BASE_GOALS_PER_TEAM = 1.15  # what one side scores on average at finishing 1.0
+
+
+def sim_kwargs(scenario: dict[str, Any] | None) -> dict[str, Any]:
+    """Simulator options a scenario carries (goal-count finishing, red cards)."""
+    sim = (scenario or {}).get("sim") or {}
+    return {"finishing": sim.get("finishing"), "red_cards": (scenario or {}).get("red_cards") or None}
+
+
+def build_match(scenario: dict[str, Any] | None, seed: int, with_frames: bool = True):
+    from .clubs import northgate_united, riverside_athletic
+    from .engine import MatchSimulator
+
+    home, away = teams_from_scenario(scenario) if scenario else (riverside_athletic(), northgate_united())
+    return MatchSimulator(home, away, seed=seed, **sim_kwargs(scenario)).run(with_frames=with_frames)
+
+
+def fit_outcome(scenario: dict[str, Any], seed: int, tries: int = 150, budget_s: float = 12.0) -> tuple[int, dict[str, Any]]:
+    """Make the storyline's score come true: tune finishing, then pick the seed that lands on it.
+
+    The simulator stays honest (goals still come from chances); we only choose which of many plausible
+    matches to play. Returns (seed, scenario with the chosen settings and the real final score).
+    """
+    target = scenario.get("final_score") or {}
+    th, ta = target.get("home"), target.get("away")
+    if th is None or ta is None:
+        return seed, scenario
+    th, ta = max(0, min(9, int(th))), max(0, min(9, int(ta)))
+    fin = {"home": max(0.3, min(12.0, (th + 0.3) / BASE_GOALS_PER_TEAM)),
+           "away": max(0.3, min(12.0, (ta + 0.3) / BASE_GOALS_PER_TEAM))}
+    import time
+
+    deadline = time.monotonic() + budget_s
+    best = (10**9, seed, fin, (0, 0))
+    for i in range(tries):
+        if time.monotonic() > deadline:
+            break
+        s = seed + i * 7919
+        trial = {**scenario, "sim": {"finishing": fin}}
+        m = build_match(trial, s, with_frames=False)
+        h = sum(1 for e in m.events if e.type.value == "goal" and e.side.value == "home")
+        a = sum(1 for e in m.events if e.type.value == "goal" and e.side.value == "away")
+        miss = abs(h - th) + abs(a - ta)
+        if miss < best[0]:
+            best = (miss, s, dict(fin), (h, a))
+        if miss == 0:
+            break
+        # nudge finishing towards the target as we go
+        fin["home"] = max(0.3, min(12.0, fin["home"] * (1 + 0.35 * (th - h) / (th + 1))))
+        fin["away"] = max(0.3, min(12.0, fin["away"] * (1 + 0.35 * (ta - a) / (ta + 1))))
+    _, s, fin, (h, a) = best
+    return s, {**scenario, "sim": {"finishing": fin, "seed": s, "score": {"home": h, "away": a}}}

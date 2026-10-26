@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -83,6 +85,16 @@ class ClubIdea(BaseModel):
     plan: list[TeamPlan] = Field(description="Tactical timeline, first entry from_minute 0.")
 
 
+class FinalScore(BaseModel):
+    home: int = Field(ge=0, le=9)
+    away: int = Field(ge=0, le=9)
+
+
+class RedCard(BaseModel):
+    side: str = Field(description="home | away")
+    minute: int = Field(ge=1, le=88)
+
+
 class Scenario(BaseModel):
     """Scenario Writer: a storyline for a synthetic match, as data the simulator can play."""
 
@@ -90,6 +102,8 @@ class Scenario(BaseModel):
     storyline: str
     home: ClubIdea
     away: ClubIdea
+    final_score: Optional[FinalScore] = Field(None, description="Only if the brief implies a result or goal count.")
+    red_cards: list[RedCard] = Field(default_factory=list, description="Only if the brief mentions a sending-off.")
 
 
 class PunditAnswer(BaseModel):

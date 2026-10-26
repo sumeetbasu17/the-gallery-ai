@@ -78,6 +78,7 @@ class TeamStats:
     cards: int = 0
     tackles: int = 0
     interceptions: int = 0
+    red_cards: int = 0
 
 
 @dataclass
@@ -194,9 +195,14 @@ class MatchState:
         elif t == EventType.INTERCEPTION and side:
             self.teams[side].interceptions += 1
         elif t == EventType.CARD and side:
-            self.teams[side].cards += 1
-            out.append(self._signal(SignalType.CARD, f"Yellow card for {self.name(ev.player_id)} "
-                                    f"({self.team_name[side]}).", 45, side, ev.player_id))
+            red = (ev.detail or {}).get("card") == "red"
+            if red:
+                self.teams[side].red_cards += 1
+            else:
+                self.teams[side].cards += 1
+            out.append(self._signal(SignalType.CARD, f"{'Red' if red else 'Yellow'} card for {self.name(ev.player_id)} "
+                                    f"({self.team_name[side]}){', down to ten men' if red else ''}.",
+                                    80 if red else 45, side, ev.player_id))
         elif t == EventType.SUBSTITUTION and side:
             d = ev.detail or {}
             out.append(self._signal(SignalType.SUBSTITUTION, f"{self.team_name[side]} substitution: "
@@ -561,7 +567,7 @@ class MatchState:
             self.team_name.get(s, s): {
                 "goals": t.goals, "shots": t.shots, "on_target": t.on_target, "xg": round(t.xg, 2),
                 "passes": t.passes, "pass_completion_pct": round(100 * t.completed / t.passes) if t.passes else None,
-                "possession_pct": round(100 * t.possession_s / total_pos), "fouls": t.fouls, "cards": t.cards,
+                "possession_pct": round(100 * t.possession_s / total_pos), "fouls": t.fouls, "cards": t.cards, "red_cards": t.red_cards,
                 "tackles": t.tackles, "interceptions": t.interceptions,
                 "block": self.shape[s].block, "width": self.shape[s].width,
             } for s, t in self.teams.items()

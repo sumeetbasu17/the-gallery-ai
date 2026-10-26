@@ -24,7 +24,7 @@ from agents import Crew, Settings
 from gallery_schema.events import Envelope
 from gallery_schema.overlays import Overlay
 from simulator import MatchSimulator, northgate_united, riverside_athletic
-from simulator.scenarios import ground_truth, teams_from_scenario
+from simulator.scenarios import build_match, fit_outcome, ground_truth, teams_from_scenario
 from stats_engine import MatchState
 
 from .store import MatchArchive
@@ -49,8 +49,7 @@ def _compact(fr) -> list:
 def _regenerate(seed: int, scenario_json: str) -> tuple:
     """Rebuild a match's tracking frames and events from its seed: the simulator is deterministic."""
     scenario = json.loads(scenario_json) if scenario_json else None
-    home, away = teams_from_scenario(scenario) if scenario else (riverside_athletic(), northgate_united())
-    match = MatchSimulator(home, away, seed=seed).run()
+    match = build_match(scenario, seed)
     frames = tuple(_compact(env.frame) for env in match.envelopes() if env.kind == "frame")
     return frames, tuple(match.events)
 
@@ -181,6 +180,12 @@ class MatchRoom:
             from agents.scenario import write_scenario
 
             self.scenario = await write_scenario(self.settings, brief)
+            if self.scenario.get("final_score"):
+                seed, self.scenario = await asyncio.to_thread(fit_outcome, self.scenario, seed)
+                got, want = self.scenario["sim"]["score"], self.scenario["final_score"]
+                if (got["home"], got["away"]) != (want["home"], want["away"]):
+                    self.scenario["storyline"] += (f" (Closest playable result: {got['home']}-{got['away']}"
+                                                   f" instead of {want['home']}-{want['away']}.)")
         self.state = MatchState()
         self.trace_log, self.history, self.events_log, self.frames = [], [], [], []
         self._last_meter = -1e9
@@ -504,8 +509,7 @@ class MatchRoom:
         await self._status(phase="second_half")
 
     async def _run_local(self, seed: int, speed: float) -> None:
-        home, away = teams_from_scenario(self.scenario) if self.scenario else (riverside_athletic(), northgate_united())
-        match = await asyncio.to_thread(lambda: MatchSimulator(home, away, seed=seed).run())
+        match = await asyncio.to_thread(build_match, self.scenario, seed)
         await self.broadcast("status", self.status)
         started = time.monotonic()
         completed = False

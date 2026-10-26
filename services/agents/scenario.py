@@ -33,9 +33,20 @@ def offline_scenario(brief: str, seed: int = 0) -> dict:
                          "press_intensity": 0.2, "tempo": 0.35})
         return rows
 
+    score = None
+    m = re.search(r"\b(\d)\s*[-–]\s*(\d)\b", b)
+    n = re.search(r"\b(\d{1,2})[- ]goal", b)
+    if m:
+        score = {"home": int(m.group(1)), "away": int(m.group(2))}
+    elif n:
+        total = min(12, int(n.group(1)))
+        score = {"home": (total + 1) // 2, "away": total // 2}
+    reds = [{"side": "away" if "northgate" in b.split("red")[0][-60:] or "riverside" not in b else "home",
+             "minute": 35 if "first-half" in b or "first half" in b else 60}] if "red card" in b or "sent off" in b else []
     home_sits = "riverside" in b and any(w in b for w in ("bus", "low block", "sit", "defend"))
     away_sits = not home_sits
-    return {"title": "Storyline", "storyline": brief or "A tactical battle.",
+    return {"title": "Storyline", "storyline": brief or "A tactical battle.", "final_score": score,
+            "red_cards": reds,
             "home": {"name": "Riverside Athletic", "short_name": "Riverside", "formation": "4-3-3",
                      "identity": "Possession and wing play.", "plan": plan("press" in b and "riverside" in b, home_sits)},
             "away": {"name": "Northgate United", "short_name": "Northgate", "formation": "4-2-3-1",

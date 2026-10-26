@@ -100,6 +100,7 @@ export default function App() {
   const { state, start, control, openArchive, backToLive } = useMatch();
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [tab, setTab] = useState<Tab>("live");
+  const [setup, setSetup] = useState(false); // the kick-off screen, opened from "New match"
   const [term, setTerm] = useState<string | null>(null);
   const [lowerThird, setLowerThird] = useState<Overlay | null>(null);
   const [callout, setCallout] = useState<Overlay | null>(null);
@@ -192,7 +193,7 @@ export default function App() {
     document.documentElement.lang = prefs.language;
   }, [prefs.language]);
 
-  const kickoff = (
+  const kickoff0 = (
     seed: number,
     speed: number,
     source: "local" | "eventhub" = "local",
@@ -203,8 +204,10 @@ export default function App() {
     replay.stop();
     stopSpeaking();
     setTab("live");
+    setSetup(false);
     start(seed, speed, source, brief);
   };
+  const kickoff = kickoff0;
 
   const open = async (id: string) => {
     try {
@@ -240,17 +243,31 @@ export default function App() {
   };
 
   const meta = state.metadata;
-  const stoppedAt = state.recap?.stopped_at ?? (state.status.ended === "stopped" ? state.minute : null);
-  const statsLabel = state.running ? "live" : stoppedAt != null ? `stopped at ${stoppedAt}'` : "full time";
+  const stoppedAt =
+    state.recap?.stopped_at ??
+    (state.status.ended === "stopped" ? state.minute : null);
+  const statsLabel = state.running
+    ? "live"
+    : stoppedAt != null
+      ? `stopped at ${stoppedAt}'`
+      : "full time";
   const status = state.status;
   const finishing = status.phase === "finishing";
   const started =
     !!viewing || state.running || !!state.frame || state.overlays.length > 0;
 
-  if (!started) {
+  if (!started || setup) {
     return (
       <main className="shell kickoff-shell">
-        <Kickoff onStart={kickoff} onOpenArchive={open} />
+        <Kickoff
+          onStart={kickoff}
+          onOpenArchive={(id) => {
+            setSetup(false);
+            open(id);
+          }}
+          onCancel={started ? () => setSetup(false) : undefined}
+          language={prefs.language}
+        />
         {!state.connected && (
           <p className="conn">Connecting to the match room…</p>
         )}
@@ -371,7 +388,11 @@ export default function App() {
             <button
               className="primary"
               disabled={finishing}
-              onClick={() => kickoff(Math.floor(Math.random() * 9000) + 1, 20)}
+              onClick={() => {
+                stopSpeaking();
+                replay.stop();
+                setSetup(true);
+              }}
             >
               {finishing ? "Writing recap…" : "New match"}
             </button>
@@ -416,7 +437,11 @@ export default function App() {
               replayLabel={replayLabel}
               onExitReplay={replay.active ? replay.stop : undefined}
               fx={replay.active ? replay.fx : undefined}
-              breakText={!viewing && state.status.phase === "half_time" ? "Half-time" : null}
+              breakText={
+                !viewing && state.status.phase === "half_time"
+                  ? "Half-time"
+                  : null
+              }
               exitLabel={viewing ? "Close replay" : "Back to live"}
               camStats={camStats}
               heat={replay.active ? null : heat}

@@ -70,11 +70,11 @@ KIND = {
 
 QUICK_LABELS = {
     "en": {"sprint": "Top speed", "power_shot": "Shot speed", "elite_pass": "Pass difficulty",
-           "pass_streak": "passes in a row", "card": "Yellow card", "substitution": "Substitution"},
+           "pass_streak": "passes in a row", "card": "Yellow card", "red": "Red card", "substitution": "Substitution"},
     "hi": {"sprint": "टॉप स्पीड", "power_shot": "शॉट की रफ़्तार", "elite_pass": "पास की कठिनाई",
-           "pass_streak": "लगातार पास", "card": "पीला कार्ड", "substitution": "खिलाड़ी बदला"},
+           "pass_streak": "लगातार पास", "card": "पीला कार्ड", "red": "लाल कार्ड", "substitution": "खिलाड़ी बदला"},
     "es": {"sprint": "Velocidad máxima", "power_shot": "Velocidad del disparo", "elite_pass": "Dificultad del pase",
-           "pass_streak": "pases seguidos", "card": "Tarjeta amarilla", "substitution": "Cambio"},
+           "pass_streak": "pases seguidos", "card": "Tarjeta amarilla", "red": "Tarjeta roja", "substitution": "Cambio"},
 }
 
 AIR_BUDGET_PER_5_MIN = 3
@@ -295,7 +295,8 @@ class Crew:
             elif s.type == SignalType.PASS_STREAK:
                 head, body = f"{name} · {ev.get('consecutive_completed_passes', 0):.0f} {L['pass_streak']}", ""
             elif s.type == SignalType.CARD:
-                head, body = f"{L['card']} · {name}", ""
+                red = s.summary.startswith("Red")
+                head, body = f"{L['red' if red else 'card']} · {name}", (s.summary if red and lang == "en" else "")
             else:
                 head, body = L["substitution"], s.summary if lang == "en" else ""
             v = Variant(headline=head, body=body)

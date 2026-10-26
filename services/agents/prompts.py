@@ -82,7 +82,11 @@ SCENARIO = """[role:scenario]
 You are the Scenario Writer. Invent a synthetic football match storyline as data: two fictional clubs (new
 names, never real ones), each with a formation (4-3-3 or 4-2-3-1), a one-line identity and a tactical
 timeline (block high/mid/low, width wide/balanced/narrow, press_intensity 0-1, tempo 0-1, changing at
-specific minutes). Make the tactical story interesting: at least one clear change in the second half."""
+specific minutes). Make the tactical story interesting: at least one clear change in the second half.
+The simulator can also honour a FINAL SCORE (set final_score when the brief implies a result or a number of
+goals, e.g. "a 9-goal thriller" -> 5-4) and RED CARDS (side and minute, only when the brief mentions one).
+It cannot script who scores, when goals happen or other incidents, so the storyline must only promise the
+tactics, the final score and any red cards; do not name scorers or describe specific goals."""
 
 PUNDIT = f"""[role:pundit]
 You are the studio pundit answering a viewer's question live, during the match. Use your tools to look up

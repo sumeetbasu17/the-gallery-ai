@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { LANG_NAMES } from "./lib";
 import { onSpeaking, say, stopSpeaking } from "./audio";
+import { MicButton } from "./Mic";
 
 /* --------------------------------------------------------------- Ask the pundit */
 const SUGGESTIONS: Record<string, string[]> = {
@@ -137,6 +138,18 @@ export function AskPundit({
               setError("");
             }}
           />
+          {enabled && (
+            <MicButton
+              language={prefs.language}
+              value=""
+              label="Ask"
+              onText={(t) => {
+                setQ(t);
+                setError("");
+              }}
+              onDone={(t) => ask(t)}
+            />
+          )}
           <button className="primary" disabled={busy || !enabled}>
             {busy ? "Thinking…" : "Ask"}
           </button>
@@ -445,6 +458,7 @@ const ROWS: Row[] = [
   { label: "Tackles", get: (t) => t.tackles },
   { label: "Fouls", get: (t) => t.fouls, lowerIsBetter: true },
   { label: "Yellow cards", get: (t) => t.cards, lowerIsBetter: true },
+  { label: "Red cards", get: (t) => t.red_cards, lowerIsBetter: true },
 ];
 
 /** The familiar match-centre stats table, live during the match and final at full time. */
@@ -467,7 +481,13 @@ export function TeamStats({
     <section className="team-stats" aria-label="Team stats">
       <header>
         <span className="ts-team home">{meta.home.short_name}</span>
-        <h4>{label ? `Team stats · ${label}` : final ? "Team stats · full time" : "Team stats · live"}</h4>
+        <h4>
+          {label
+            ? `Team stats · ${label}`
+            : final
+              ? "Team stats · full time"
+              : "Team stats · live"}
+        </h4>
         <span className="ts-team away">{meta.away.short_name}</span>
       </header>
       <table>
