@@ -416,6 +416,7 @@ export default function App() {
               replayLabel={replayLabel}
               onExitReplay={replay.active ? replay.stop : undefined}
               fx={replay.active ? replay.fx : undefined}
+              breakText={!viewing && state.status.phase === "half_time" ? "Half-time" : null}
               exitLabel={viewing ? "Close replay" : "Back to live"}
               camStats={camStats}
               heat={replay.active ? null : heat}

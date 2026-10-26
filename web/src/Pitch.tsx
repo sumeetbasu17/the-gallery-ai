@@ -15,6 +15,8 @@ export interface PlayerStats {
 interface Props {
   /** Replay effects: shot trail, the shooter's kick, the goal flash, slow motion. */
   fx?: ReplayFx;
+  /** e.g. "Half-time": the pitch dims and play is frozen. */
+  breakText?: string | null;
   frame: Frame | null;
   meta: Metadata | null;
   prefs: Prefs;
@@ -60,6 +62,7 @@ export function Pitch({
   emptyCompact,
   heatLabel,
   fx,
+  breakText,
 }: Props) {
   const homeIds = new Set(meta?.home.players.map((p) => p.id));
   const numbers = new Map<string, number>();
@@ -314,6 +317,12 @@ export function Pitch({
         </div>
       )}
 
+      {breakText && !replayLabel && (
+        <div className="break-overlay" role="status">
+          <strong>{breakText}</strong>
+          <span>The second half kicks off shortly</span>
+        </div>
+      )}
       {fx?.goalSide && (
         <div className="goal-flash" aria-live="assertive">
           GOAL!

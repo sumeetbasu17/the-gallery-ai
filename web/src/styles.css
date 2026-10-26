@@ -434,3 +434,6 @@ button, select, input { font: inherit; color: inherit; }
 .view3d .token.home { background: linear-gradient(var(--home), #3d86c4); }
 .view3d .token.away { background: linear-gradient(var(--away), #c04760); }
 .view3d .token.shooter { filter: drop-shadow(0 0 3px var(--card)) drop-shadow(0 0 3px var(--card)); }
+.break-overlay { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; text-align: center; gap: 6px; background: rgba(13, 27, 42, .55); pointer-events: none; }
+.break-overlay strong { font: 800 clamp(40px, 7vw, 84px)/1 var(--display); color: var(--card); letter-spacing: .04em; text-transform: uppercase; }
+.break-overlay span { color: var(--chalk); font-size: 16px; }

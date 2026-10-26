@@ -34,7 +34,7 @@ log = logging.getLogger("gallery.room")
 FRAME_MIN_INTERVAL_S = 0.1   # cap frame broadcasts at 10 per real second
 METER_EVERY_MATCH_S = 30.0
 HALF_TIME_BREAK_MAX_S = 40.0  # real seconds the replay waits at half-time for the coach reports
-HALF_TIME_BREAK_MIN_S = 12.0  # ...and at least this long, so viewers see the break and the reports land
+HALF_TIME_BREAK_MIN_S = 15.0  # ...and at least this long, so viewers see the break and the reports land
 FINISH_TIMEOUT_S = 60.0
 KEY_EVENTS = ("goal", "card", "substitution", "half_time", "full_time", "kick_off")
 CLIP_MAX_S = 180
@@ -528,7 +528,7 @@ class MatchRoom:
     @staticmethod
     async def _delayed_publish(publish, seed: int, speed: float, scenario) -> None:
         await asyncio.sleep(3)
-        await publish(seed, speed, scenario)
+        await publish(seed, speed, scenario, HALF_TIME_BREAK_MIN_S)
 
     async def _run_eventhub(self, seed: int, speed: float) -> None:
         from .eventhub import consume, publish
@@ -540,6 +540,14 @@ class MatchRoom:
             self._publisher = asyncio.create_task(self._delayed_publish(publish, seed, speed, self.scenario))
             async for env in stream:
                 await self.ingest(env)
+                # the publisher holds the second half back during the break; mirror it on screen
+                if env.kind == "event" and env.event.type.value == "half_time":
+                    await self._status(phase="half_time")
+                elif env.kind == "frame" and self.status.get("phase") == "half_time" and \
+                        env.frame.second > self.status.get("ht_second", 0):
+                    await self._status(phase="second_half")
+                if env.kind == "event" and env.event.type.value == "half_time":
+                    self.status["ht_second"] = env.event.second + 0.5
             completed = True
         finally:
             self.status["running"] = False
