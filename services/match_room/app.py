@@ -144,7 +144,10 @@ async def match_detail(match_id: str):
 
 @app.delete("/api/matches/{match_id}")
 async def match_delete(match_id: str):
-    return {"deleted": await room.store.delete(match_id)}
+    deleted = await room.store.delete(match_id)
+    if match_id == room.archive_id and not room.status.get("running"):
+        await room.clear()  # it was the match still on screen: take it off everyone's screen too
+    return {"deleted": deleted}
 
 
 @app.get("/api/replay")
@@ -152,7 +155,8 @@ async def replay(start: float = Query(alias="from"), end: float = Query(alias="t
     frames = await room.replay(start, end, match or None)
     if frames is None:
         return JSONResponse({"error": "This match can't be replayed."}, status_code=404)
-    return {"frames": frames}
+    ball, shots = await room.replay_track(start, end, match or None)
+    return {"frames": frames, "ball": ball, "shots": shots}
 
 
 class AskRequest(BaseModel):

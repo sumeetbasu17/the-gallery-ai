@@ -402,3 +402,35 @@ button, select, input { font: inherit; color: inherit; }
 .zone-track span { display: block; height: 100%; background: var(--card); }
 .zone .num { text-align: right; color: var(--chalk); }
 .heat-label { font: 600 2.4px var(--display); fill: var(--chalk); opacity: .75; letter-spacing: .05em; }
+/* ---------------------------------------------------------------- replay effects */
+.pl { transition: transform .1s linear; }
+.ball { transition: transform .1s linear; }
+.replaying .pl, .replaying .ball { transition: none; }
+.markings .goal { fill: rgba(234, 240, 236, .12); stroke: rgba(234, 240, 236, .8); }
+.markings .goal.net-flash { fill: var(--card); }
+.nets line { stroke: rgba(234, 240, 236, .35); stroke-width: .12; }
+.nets .post { stroke: #fff; stroke-width: .5; }
+.shot-trail line { stroke: var(--card); stroke-width: .45; stroke-dasharray: 1 .6; }
+.shot-trail circle { fill: var(--card); }
+.kick-ring { fill: none; stroke: var(--card); stroke-width: .35; }
+@media (prefers-reduced-motion: no-preference) {
+  .pl.kicking .kick-ring { animation: kick .35s ease-out infinite; }
+  .token.kicking { animation: hop .35s ease-out; }
+  .goal-flash { animation: pop .5s ease-out; }
+}
+@keyframes kick { from { stroke-width: 1.2; } to { stroke-width: .1; } }
+@keyframes hop { 50% { transform: translate(-50%, -10px) rotateX(-52deg) scale(1.15); } }
+@keyframes pop { from { transform: translate(-50%, -50%) scale(.4); opacity: 0; } }
+.token.shooter { box-shadow: 0 0 0 3px var(--card), 0 6px 6px -4px rgba(0, 0, 0, .5); }
+.goal-flash { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 4; font: 800 clamp(48px, 9vw, 120px)/1 var(--display); color: var(--card); letter-spacing: .04em; text-shadow: 0 4px 0 #0008, 0 0 40px #000a; pointer-events: none; }
+.outcome-flash { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 4; background: rgba(13, 27, 42, .92); border: 1px solid var(--card); color: var(--card); border-radius: 999px; padding: 4px 16px; font: 700 18px var(--display); text-transform: uppercase; letter-spacing: .06em; }
+.slowmo { background: var(--card); color: var(--card-ink); border-radius: 3px; padding: 0 6px; font-size: 13px; }
+/* jersey-shaped players in the 3D camera */
+.view3d .token.home, .view3d .token.away {
+  width: 30px; height: 30px; border: 0; border-radius: 0;
+  clip-path: polygon(30% 0, 70% 0, 100% 18%, 88% 42%, 78% 36%, 78% 100%, 22% 100%, 22% 36%, 12% 42%, 0 18%);
+  padding-top: 6px; box-shadow: none; filter: drop-shadow(0 4px 3px rgba(0, 0, 0, .5));
+}
+.view3d .token.home { background: linear-gradient(var(--home), #3d86c4); }
+.view3d .token.away { background: linear-gradient(var(--away), #c04760); }
+.view3d .token.shooter { filter: drop-shadow(0 0 3px var(--card)) drop-shadow(0 0 3px var(--card)); }

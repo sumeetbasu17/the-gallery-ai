@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { Frame, Metadata, Overlay, Prefs } from "./types";
+import type { ReplayFx } from "./Replay";
 import { pickVariant, playerName } from "./lib";
 
 export interface PlayerStats {
@@ -12,6 +13,8 @@ export interface PlayerStats {
 }
 
 interface Props {
+  /** Replay effects: shot trail, the shooter's kick, the goal flash, slow motion. */
+  fx?: ReplayFx;
   frame: Frame | null;
   meta: Metadata | null;
   prefs: Prefs;
@@ -56,6 +59,7 @@ export function Pitch({
   heat,
   emptyCompact,
   heatLabel,
+  fx,
 }: Props) {
   const homeIds = new Set(meta?.home.players.map((p) => p.id));
   const numbers = new Map<string, number>();
@@ -123,7 +127,12 @@ export function Pitch({
             </g>
           )}
           {heat && heatLabel && (
-            <text x={L / 2} y={W - 2.2} textAnchor="middle" className="heat-label">
+            <text
+              x={L / 2}
+              y={W - 2.2}
+              textAnchor="middle"
+              className="heat-label"
+            >
               {heatLabel}
             </text>
           )}
@@ -136,14 +145,51 @@ export function Pitch({
             <rect x={0} y={24.84} width={5.5} height={18.32} />
             <rect x={L - 5.5} y={24.84} width={5.5} height={18.32} />
             <rect
-              x={-1.5}
+              x={-2}
               y={30.34}
-              width={1.5}
+              width={2}
               height={7.32}
-              className="goal"
+              className={`goal ${fx?.goalSide === "left" ? "net-flash" : ""}`}
             />
-            <rect x={L} y={30.34} width={1.5} height={7.32} className="goal" />
+            <rect
+              x={L}
+              y={30.34}
+              width={2}
+              height={7.32}
+              className={`goal ${fx?.goalSide === "right" ? "net-flash" : ""}`}
+            />
           </g>
+          <g className="nets" aria-hidden="true">
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+              <g key={i}>
+                <line
+                  x1={-2}
+                  x2={0}
+                  y1={30.34 + i * 1.22}
+                  y2={30.34 + i * 1.22}
+                />
+                <line
+                  x1={L}
+                  x2={L + 2}
+                  y1={30.34 + i * 1.22}
+                  y2={30.34 + i * 1.22}
+                />
+              </g>
+            ))}
+            <line x1={0} x2={0} y1={30.34} y2={37.66} className="post" />
+            <line x1={L} x2={L} y1={30.34} y2={37.66} className="post" />
+          </g>
+          {fx?.trail && (
+            <g className="shot-trail">
+              <line
+                x1={fx.trail[0]}
+                y1={fx.trail[1]}
+                x2={fx.trail[2]}
+                y2={fx.trail[3]}
+              />
+              <circle cx={fx.trail[0]} cy={fx.trail[1]} r={0.7} />
+            </g>
+          )}
 
           {line && (
             <g className="callout">
@@ -188,10 +234,11 @@ export function Pitch({
             frame?.players.map(([id, x, y]) => (
               <g
                 key={id}
-                transform={`translate(${x} ${y})`}
-                className={cam === id ? "cam" : undefined}
+                style={{ transform: `translate(${x}px, ${y}px)` }}
+                className={`pl ${cam === id ? "cam" : ""} ${fx?.shooter === id ? "shooter" : ""} ${fx?.shooter === id && fx.kicking ? "kicking" : ""}`}
               >
                 {cam === id && <circle r={3.4} className="cam-ring" />}
+                {fx?.shooter === id && <circle r={3} className="kick-ring" />}
                 <circle
                   r={1.55}
                   className={homeIds.has(id) ? "dot-home" : "dot-away"}
@@ -203,10 +250,11 @@ export function Pitch({
             ))}
           {frame && !is3d && (
             <circle
-              cx={frame.ball[0]}
-              cy={frame.ball[1]}
               r={0.9}
               className="ball"
+              style={{
+                transform: `translate(${frame.ball[0]}px, ${frame.ball[1]}px)`,
+              }}
             />
           )}
         </svg>
@@ -221,7 +269,7 @@ export function Pitch({
               >
                 <span className={`token-foot ${cam === id ? "cam" : ""}`} />
                 <span
-                  className={`token ${homeIds.has(id) ? "home" : "away"} ${cam === id ? "cam" : ""}`}
+                  className={`token ${homeIds.has(id) ? "home" : "away"} ${cam === id ? "cam" : ""} ${fx?.shooter === id ? "shooter" : ""} ${fx?.shooter === id && fx.kicking ? "kicking" : ""}`}
                 >
                   {numbers.get(id)}
                 </span>
@@ -266,6 +314,20 @@ export function Pitch({
         </div>
       )}
 
+      {fx?.goalSide && (
+        <div className="goal-flash" aria-live="assertive">
+          GOAL!
+        </div>
+      )}
+      {fx?.outcome && fx.outcome !== "goal" && (
+        <div className="outcome-flash">
+          {fx.outcome === "saved"
+            ? "Saved"
+            : fx.outcome === "blocked"
+              ? "Blocked"
+              : "Wide"}
+        </div>
+      )}
       {onToggle3d && (
         <button
           className="view-toggle"
@@ -279,6 +341,7 @@ export function Pitch({
 
       {replayLabel && (
         <div className="replay-bug" role="status">
+          {fx?.slowmo && <span className="slowmo">Slow-mo</span>}
           <span className="rec" aria-hidden="true" />
           Replay · {replayLabel}
           {onExitReplay && (

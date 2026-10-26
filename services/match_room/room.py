@@ -34,6 +34,7 @@ log = logging.getLogger("gallery.room")
 FRAME_MIN_INTERVAL_S = 0.1   # cap frame broadcasts at 10 per real second
 METER_EVERY_MATCH_S = 30.0
 HALF_TIME_BREAK_MAX_S = 40.0  # real seconds the replay waits at half-time for the coach reports
+HALF_TIME_BREAK_MIN_S = 12.0  # ...and at least this long, so viewers see the break and the reports land
 FINISH_TIMEOUT_S = 60.0
 KEY_EVENTS = ("goal", "card", "substitution", "half_time", "full_time", "kick_off")
 CLIP_MAX_S = 180
@@ -46,11 +47,48 @@ def _compact(fr) -> list:
 
 @lru_cache(maxsize=3)
 def _regenerate(seed: int, scenario_json: str) -> tuple:
-    """Rebuild a match's tracking frames from its seed: the simulator is deterministic."""
+    """Rebuild a match's tracking frames and events from its seed: the simulator is deterministic."""
     scenario = json.loads(scenario_json) if scenario_json else None
     home, away = teams_from_scenario(scenario) if scenario else (riverside_athletic(), northgate_united())
     match = MatchSimulator(home, away, seed=seed).run()
-    return tuple(_compact(env.frame) for env in match.envelopes() if env.kind == "frame")
+    frames = tuple(_compact(env.frame) for env in match.envelopes() if env.kind == "frame")
+    return frames, tuple(match.events)
+
+
+def ball_track(events, start: float, end: float) -> tuple[list, list]:
+    """Sub-second ball path and the shots in a window, straight from the events (frames are only 1 Hz).
+
+    A goal finishes inside the net and stays there until the restart, so a replay shows it go in.
+    """
+    evs = [e for e in events if start - 6 <= e.second <= end + 3]
+    keys: list[list[float]] = []
+    shots: list[dict] = []
+    in_net: list[tuple[float, float]] = []
+    for i, e in enumerate(evs):
+        if e.start is not None:
+            keys.append([e.second, e.start.x, e.start.y])
+        if e.end is None or e.type.value not in ("pass", "carry", "shot"):
+            continue
+        ex, ey = e.end.x, e.end.y
+        goal = e.type.value == "shot" and e.outcome == "goal"
+        if goal:
+            ex = 106.6 if ex > 52.5 else -1.6
+        speed = max((e.ball_speed_kmh or 12) / 3.6, 1.0)
+        t_end = e.second + ((ex - e.start.x) ** 2 + (ey - e.start.y) ** 2) ** 0.5 / speed if e.start else e.second
+        keys.append([round(t_end, 2), round(ex, 2), round(ey, 2)])
+        if e.type.value == "shot":
+            shots.append({"t": e.second, "t_end": round(t_end, 2), "x0": e.start.x if e.start else ex,
+                          "y0": e.start.y if e.start else ey, "x1": round(ex, 2), "y1": round(ey, 2),
+                          "outcome": e.outcome, "player_id": e.player_id,
+                          "side": e.side.value if e.side else None})
+        if goal:
+            nxt = next((n.second for n in evs[i + 1:] if n.type.value == "kick_off"), t_end + 30)
+            keys.append([round(nxt - 0.05, 2), round(ex, 2), round(ey, 2)])
+            in_net.append((round(t_end, 2) + 0.001, nxt - 0.051))
+    # the ball stays in the net until the restart, whatever other events are logged meanwhile
+    keys = [k for k in keys if not any(a < k[0] < b for a, b in in_net)]
+    keys.sort(key=lambda k: k[0])
+    return keys, shots
 
 
 def clip(frames, start: float, end: float) -> list:
@@ -189,6 +227,18 @@ class MatchRoom:
         self.status["running"] = False
         self.status["paused"] = False
 
+    async def clear(self) -> None:
+        """Forget the finished match on screen (after it was deleted from the archive)."""
+        if self.status.get("running"):
+            return
+        self.state = MatchState()
+        self.crew = None
+        self.trace_log, self.history, self.events_log, self.frames = [], [], [], []
+        self.archive_id = None
+        self.status = {"running": False, "seed": None, "speed": None, "clock": 0.0, "paused": False,
+                       "phase": "idle"}
+        await self.broadcast("hello", self.snapshot())
+
     async def pause(self) -> bool:
         if not self.status.get("running") or self.status.get("paused") or not self.status.get("can_pause"):
             return False
@@ -277,6 +327,17 @@ class MatchRoom:
         frames = await self._frames_for(archive_id)
         return None if frames is None else clip(frames, start, end)
 
+    async def replay_track(self, start: float, end: float, archive_id: Optional[str] = None) -> tuple[list, list]:
+        if not archive_id or archive_id == self.archive_id:
+            events = list(self.state.all_events)
+        else:
+            doc = await self.store.get(archive_id)
+            if not doc or doc.get("seed") is None:
+                return [], []
+            scenario = json.dumps(doc.get("scenario"), sort_keys=True) if doc.get("scenario") else ""
+            _, events = await asyncio.to_thread(_regenerate, int(doc["seed"]), scenario)
+        return ball_track(events, start, end)
+
     async def _frames_for(self, archive_id: Optional[str]):
         if not archive_id or archive_id == self.archive_id:
             return self.frames
@@ -284,7 +345,8 @@ class MatchRoom:
         if not doc or doc.get("seed") is None:
             return None
         scenario = json.dumps(doc.get("scenario"), sort_keys=True) if doc.get("scenario") else ""
-        return await asyncio.to_thread(_regenerate, int(doc["seed"]), scenario)
+        frames, _ = await asyncio.to_thread(_regenerate, int(doc["seed"]), scenario)
+        return frames
 
     async def heatmap(self, player_id: str, archive_id: Optional[str] = None) -> Optional[dict]:
         """Where a player spent the match: share of seconds in each 5 m x 5 m cell (21 x 14 grid)."""
@@ -435,6 +497,9 @@ class MatchRoom:
             await asyncio.wait_for(self.crew.half_time_done.wait(), HALF_TIME_BREAK_MAX_S)
         except asyncio.TimeoutError:
             log.info("half-time reports still running; restarting play")
+        rest = HALF_TIME_BREAK_MIN_S - (time.monotonic() - t0)
+        if rest > 0:
+            await asyncio.sleep(rest)
         self._pause_total += time.monotonic() - t0
         await self._status(phase="second_half")
 

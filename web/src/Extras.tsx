@@ -452,10 +452,12 @@ export function TeamStats({
   teams,
   meta,
   final,
+  label,
 }: {
   teams: Record<string, TeamSummary>;
   meta: Metadata | null;
   final?: boolean;
+  label?: string;
 }) {
   if (!meta) return null;
   const h = teams[meta.home.name];
@@ -465,7 +467,7 @@ export function TeamStats({
     <section className="team-stats" aria-label="Team stats">
       <header>
         <span className="ts-team home">{meta.home.short_name}</span>
-        <h4>{final ? "Team stats · full time" : "Team stats · live"}</h4>
+        <h4>{label ? `Team stats · ${label}` : final ? "Team stats · full time" : "Team stats · live"}</h4>
         <span className="ts-team away">{meta.away.short_name}</span>
       </header>
       <table>

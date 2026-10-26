@@ -269,7 +269,16 @@ class MatchSimulator:
                 else:
                     outcome = "off_target"
                 speed = round(float(_clamp(118 - 1.4 * dist_goal + rng.normal(0, 9), 55, 130)), 1)
-                goal_end = self.to_abs(side, L, W / 2 + float(rng.uniform(-3, 3)))
+                u = float(rng.uniform(-3, 3))
+                if outcome == "blocked":   # charged down a few metres in front of the shooter
+                    goal_end = (ball[0] + 0.25 * (self.to_abs(side, L, W / 2)[0] - ball[0]),
+                                ball[1] + 0.25 * (W / 2 - ball[1]))
+                elif outcome == "off_target":  # wide of a post
+                    goal_end = self.to_abs(side, L, W / 2 + (4.6 + abs(u)) * (1 if u >= 0 else -1))
+                elif outcome == "saved":   # keeper gets to it just in front of the line
+                    goal_end = self.to_abs(side, L - 1.2, W / 2 + u)
+                else:
+                    goal_end = self.to_abs(side, L, W / 2 + u)
                 self._emit(EventType.SHOT, clock, minute, side, player_id=carrier.id, start=self._pt(ball),
                            end=self._pt(goal_end), outcome=outcome, xg=xg, ball_speed_kmh=speed,
                            under_pressure=under_p, detail={"distance_m": round(dist_goal, 1), **extra})

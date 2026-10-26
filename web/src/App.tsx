@@ -240,6 +240,8 @@ export default function App() {
   };
 
   const meta = state.metadata;
+  const stoppedAt = state.recap?.stopped_at ?? (state.status.ended === "stopped" ? state.minute : null);
+  const statsLabel = state.running ? "live" : stoppedAt != null ? `stopped at ${stoppedAt}'` : "full time";
   const status = state.status;
   const finishing = status.phase === "finishing";
   const started =
@@ -413,6 +415,7 @@ export default function App() {
               }
               replayLabel={replayLabel}
               onExitReplay={replay.active ? replay.stop : undefined}
+              fx={replay.active ? replay.fx : undefined}
               exitLabel={viewing ? "Close replay" : "Back to live"}
               camStats={camStats}
               heat={replay.active ? null : heat}
@@ -456,7 +459,7 @@ export default function App() {
                 compact
               />
             )}
-            <TeamStats teams={state.teams} meta={meta} final={!state.running} />
+            <TeamStats teams={state.teams} meta={meta} label={statsLabel} />
           </div>
           <aside className="stage-side" aria-label="Insights">
             {!viewing && (
@@ -526,7 +529,7 @@ export default function App() {
                 overlays={state.overlays}
                 meta={meta}
               />
-              <TeamStats teams={state.teams} meta={meta} final />
+              <TeamStats teams={state.teams} meta={meta} label={statsLabel} />
             </>
           }
         />
