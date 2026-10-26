@@ -23,7 +23,6 @@ from fastapi import WebSocket
 from agents import Crew, Settings
 from gallery_schema.events import Envelope
 from gallery_schema.overlays import Overlay
-from simulator import MatchSimulator, northgate_united, riverside_athletic
 from simulator.scenarios import build_match, fit_outcome, ground_truth, teams_from_scenario
 from stats_engine import MatchState
 
