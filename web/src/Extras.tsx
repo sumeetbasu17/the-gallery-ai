@@ -74,7 +74,9 @@ export function AskPundit({
   prefs,
   onTerm,
   enabled,
+  archiveId,
 }: {
+  archiveId?: string | null;
   prefs: Prefs;
   onTerm: (t: string) => void;
   enabled: boolean;
@@ -96,7 +98,11 @@ export function AskPundit({
       const r = await fetch("/api/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: text, language: prefs.language }),
+        body: JSON.stringify({
+          question: text,
+          language: prefs.language,
+          match: archiveId ?? "",
+        }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "The pundit couldn't answer.");

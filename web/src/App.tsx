@@ -488,9 +488,13 @@ export default function App() {
             <TeamStats teams={state.teams} meta={meta} label={statsLabel} />
           </div>
           <aside className="stage-side" aria-label="Insights">
-            {!viewing && (
-              <AskPundit prefs={prefs} onTerm={setTerm} enabled={!!meta} />
-            )}
+            <AskPundit
+              key={viewing ? viewing.id : "live"}
+              prefs={prefs}
+              onTerm={setTerm}
+              enabled={!!meta}
+              archiveId={viewing ? viewing.id : null}
+            />
             {prefs.playerCam && (
               <PlayerCard
                 p={camStats as Record<string, any> | null}

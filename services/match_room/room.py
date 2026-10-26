@@ -122,6 +122,7 @@ class MatchRoom:
         self._pause_total = 0.0
         self._finishing: Optional[asyncio.Task] = None
         self._report_cache: dict[tuple, dict] = {}
+        self._archive_crews: dict[str, Crew] = {}
 
     # ------------------------------------------------------------ viewers
     async def join(self, ws: WebSocket) -> None:
@@ -394,6 +395,33 @@ class MatchRoom:
                 "attacking_third_pct": pct(thirds[2]), "left_channel_pct": pct(channels[0]),
                 "central_channel_pct": pct(channels[1]), "right_channel_pct": pct(channels[2]),
                 "minutes_on_pitch": round(n / 60)}
+
+    async def archive_crew(self, archive_id: str) -> Optional[Crew]:
+        """A pundit for a finished match: rebuild its stats from the seed (deterministic), then answer."""
+        if archive_id in self._archive_crews:
+            return self._archive_crews[archive_id]
+        doc = await self.store.get(archive_id)
+        if not doc or doc.get("seed") is None:
+            return None
+
+        def rebuild() -> MatchState:
+            st = MatchState()
+            stop = None if doc.get("ended") == "full_time" else (doc.get("minute") or 90) * 60 + 59
+            for env in build_match(doc.get("scenario"), int(doc["seed"])).envelopes():
+                t = env.event.second if env.event else env.frame.second if env.frame else 0.0
+                if stop is not None and t > stop:
+                    break
+                st.ingest(env)
+            return st
+
+        state = await asyncio.to_thread(rebuild)
+        crew = Crew(self.settings, state)
+        crew.match_status = ("over: full time, the match has finished" if doc.get("ended") == "full_time"
+                             else f"over: the producer stopped the match at {doc.get('minute')}'")
+        if len(self._archive_crews) >= 3:
+            self._archive_crews.pop(next(iter(self._archive_crews)))
+        self._archive_crews[archive_id] = crew
+        return crew
 
     async def player_report(self, player_id: str, archive_id: Optional[str], language: str) -> Optional[dict]:
         from agents.player_report import write_player_report

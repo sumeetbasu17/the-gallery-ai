@@ -67,6 +67,10 @@ def test_pause_end_archive_and_replay(client, tmp_path):
     regen = client.get(f"/api/replay?from=60&to=70&match={archive_id}").json()["frames"]
     assert regen[0] == live[0]  # the seed regenerates the exact same frames
 
+    room.archive_id = None  # pretend a new match is on: the pundit must rebuild the archived one
+    ans = client.post("/api/ask", json={"question": "Who has been the best passer?", "match": archive_id}).json()
+    assert ans["answer"] and ans["final"] is True
+
 
 def test_heatmap(client):
     from match_room.app import room

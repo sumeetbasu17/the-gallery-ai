@@ -162,14 +162,20 @@ async def replay(start: float = Query(alias="from"), end: float = Query(alias="t
 class AskRequest(BaseModel):
     question: str
     language: str = "en"
+    match: str = ""  # an archived match id; empty = the live match
 
 
 @app.post("/api/ask")
 async def ask(req: AskRequest):
     """Ask the pundit: a viewer question answered live from the match tools, fact-checked."""
+    lang = req.language if req.language in settings.languages else "en"
+    if req.match and req.match != room.archive_id:
+        crew = await room.archive_crew(req.match)
+        if crew is None:
+            return JSONResponse({"error": "That match can't be analysed any more."}, status_code=404)
+        return await crew.ask(req.question, lang)
     if room.crew is None or room.state.meta is None:
         return JSONResponse({"error": "Kick off a match first."}, status_code=409)
-    lang = req.language if req.language in settings.languages else "en"
     return await room.crew.ask(req.question, lang)
 
 
