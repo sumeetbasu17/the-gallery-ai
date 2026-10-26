@@ -59,7 +59,10 @@ async def write_scenario(settings: Settings, brief: str) -> dict:
     if settings.mode == "offline" or not brief:
         return offline_scenario(brief)
     agent = Agent(make_client(settings, settings.creative_model), prompts.SCENARIO, name="scenario_writer")
+    from simulator import northgate_united, riverside_athletic
+
     payload = {"brief": brief, "clubs": ["Riverside Athletic (home)", "Northgate United (away)"],
+               "squads": {t.name: [p.name for p in t.players] for t in (riverside_athletic(), northgate_united())},
                "allowed": {"block": BLOCKS, "width": WIDTHS, "formation": ["4-3-3", "4-2-3-1"]},
                "rule": "Keep the two club names exactly. Changes at least 10 minutes apart."}
     try:

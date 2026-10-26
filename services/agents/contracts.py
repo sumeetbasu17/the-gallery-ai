@@ -95,6 +95,11 @@ class RedCard(BaseModel):
     minute: int = Field(ge=1, le=88)
 
 
+class ScorerWish(BaseModel):
+    player: str = Field(description="Exact player name from the squad lists.")
+    goals: int = Field(ge=1, le=5)
+
+
 class Scenario(BaseModel):
     """Scenario Writer: a storyline for a synthetic match, as data the simulator can play."""
 
@@ -104,6 +109,7 @@ class Scenario(BaseModel):
     away: ClubIdea
     final_score: Optional[FinalScore] = Field(None, description="Only if the brief implies a result or goal count.")
     red_cards: list[RedCard] = Field(default_factory=list, description="Only if the brief mentions a sending-off.")
+    scorers: list[ScorerWish] = Field(default_factory=list, description="Only players the brief names as scorers.")
 
 
 class PunditAnswer(BaseModel):

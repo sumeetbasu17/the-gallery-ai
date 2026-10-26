@@ -94,12 +94,13 @@ class SimulatedMatch:
 class MatchSimulator:
     def __init__(self, home: Team, away: Team, seed: int = 7, match_id: Optional[str] = None,
                  venue: str = "Harbourside Stadium", finishing: Optional[dict] = None,
-                 red_cards: Optional[list] = None):
+                 red_cards: Optional[list] = None, player_finishing: Optional[dict] = None):
         """finishing: {"home": 1.0, "away": 1.0} scales how often chances go in (a storyline's goal count).
         red_cards: [{"side": "home", "minute": 30}] sends a player off at the first foul from that minute."""
         self.rng = np.random.default_rng(seed)
         self.finishing = {Side.HOME: float((finishing or {}).get("home", 1.0)),
                           Side.AWAY: float((finishing or {}).get("away", 1.0))}
+        self.player_finishing = {k: float(v) for k, v in (player_finishing or {}).items()}
         self.pending_reds = sorted(((int(r["minute"]), Side(r["side"])) for r in (red_cards or [])
                                     if r.get("side") in ("home", "away")), key=lambda r: r[0])
         self.match_id = match_id or f"M{seed:05d}"
@@ -274,11 +275,11 @@ class MatchSimulator:
                 if under_p:
                     xg = round(xg * 0.7, 3)
                 roll = rng.random()
-                if roll < min(0.95, xg * self.finishing[side]):
+                if roll < min(0.95, xg * self.finishing[side] * self.player_finishing.get(carrier.id, 1.0)):
                     outcome = "goal"
-                elif roll < min(0.95, xg * self.finishing[side]) + 0.28:
+                elif roll < min(0.95, xg * self.finishing[side] * self.player_finishing.get(carrier.id, 1.0)) + 0.28:
                     outcome = "saved"
-                elif roll < min(0.95, xg * self.finishing[side]) + 0.48:
+                elif roll < min(0.95, xg * self.finishing[side] * self.player_finishing.get(carrier.id, 1.0)) + 0.48:
                     outcome = "blocked"
                 else:
                     outcome = "off_target"

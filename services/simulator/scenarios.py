@@ -87,7 +87,8 @@ BASE_GOALS_PER_TEAM = 1.15  # what one side scores on average at finishing 1.0
 def sim_kwargs(scenario: dict[str, Any] | None) -> dict[str, Any]:
     """Simulator options a scenario carries (goal-count finishing, red cards)."""
     sim = (scenario or {}).get("sim") or {}
-    return {"finishing": sim.get("finishing"), "red_cards": (scenario or {}).get("red_cards") or None}
+    return {"finishing": sim.get("finishing"), "red_cards": (scenario or {}).get("red_cards") or None,
+            "player_finishing": sim.get("player_finishing")}
 
 
 def build_match(scenario: dict[str, Any] | None, seed: int, with_frames: bool = True):
@@ -109,27 +110,43 @@ def fit_outcome(scenario: dict[str, Any], seed: int, tries: int = 150, budget_s:
     if th is None or ta is None:
         return seed, scenario
     th, ta = max(0, min(9, int(th))), max(0, min(9, int(ta)))
+    # named scorers ("Ndiaye scores twice"): give them sharper finishing and count their goals too
+    home_t, away_t = teams_from_scenario(scenario)
+    ids = {p.name.lower(): p.id for t in (home_t, away_t) for p in t.players}
+    wanted: dict[str, int] = {}
+    for sc in scenario.get("scorers") or []:
+        name = str(sc.get("player", "")).lower().strip()
+        pid = ids.get(name) or next((v for k, v in ids.items() if name and name.split()[-1] in k), None)
+        if pid and int(sc.get("goals", 0)) > 0:
+            wanted[pid] = min(5, int(sc["goals"]))
+    pfin = {pid: 2.5 + g for pid, g in wanted.items()}
     fin = {"home": max(0.3, min(12.0, (th + 0.3) / BASE_GOALS_PER_TEAM)),
            "away": max(0.3, min(12.0, (ta + 0.3) / BASE_GOALS_PER_TEAM))}
     import time
 
     deadline = time.monotonic() + budget_s
-    best = (10**9, seed, fin, (0, 0))
+    best = (10**9, seed, fin, (0, 0), {})
     for i in range(tries):
         if time.monotonic() > deadline:
             break
         s = seed + i * 7919
-        trial = {**scenario, "sim": {"finishing": fin}}
+        trial = {**scenario, "sim": {"finishing": fin, "player_finishing": pfin}}
         m = build_match(trial, s, with_frames=False)
-        h = sum(1 for e in m.events if e.type.value == "goal" and e.side.value == "home")
-        a = sum(1 for e in m.events if e.type.value == "goal" and e.side.value == "away")
-        miss = abs(h - th) + abs(a - ta)
+        goals = [e for e in m.events if e.type.value == "goal"]
+        h = sum(1 for e in goals if e.side.value == "home")
+        a = sum(1 for e in goals if e.side.value == "away")
+        got = {pid: sum(1 for e in goals if e.player_id == pid) for pid in wanted}
+        miss = 2 * (abs(h - th) + abs(a - ta)) + sum(abs(got[p] - g) for p, g in wanted.items())
         if miss < best[0]:
-            best = (miss, s, dict(fin), (h, a))
+            best = (miss, s, dict(fin), (h, a), got)
         if miss == 0:
             break
         # nudge finishing towards the target as we go
         fin["home"] = max(0.3, min(12.0, fin["home"] * (1 + 0.35 * (th - h) / (th + 1))))
         fin["away"] = max(0.3, min(12.0, fin["away"] * (1 + 0.35 * (ta - a) / (ta + 1))))
-    _, s, fin, (h, a) = best
-    return s, {**scenario, "sim": {"finishing": fin, "seed": s, "score": {"home": h, "away": a}}}
+    _, s, fin, (h, a), got = best
+    names = {v: k for k, v in ids.items()}
+    return s, {**scenario, "sim": {"finishing": fin, "player_finishing": pfin, "seed": s,
+                                   "score": {"home": h, "away": a},
+                                   "scorers": [{"player": names[p].title(), "wanted": wanted[p], "got": got.get(p, 0)}
+                                               for p in wanted]}}

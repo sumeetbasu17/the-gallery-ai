@@ -185,6 +185,10 @@ class MatchRoom:
                 if (got["home"], got["away"]) != (want["home"], want["away"]):
                     self.scenario["storyline"] += (f" (Closest playable result: {got['home']}-{got['away']}"
                                                    f" instead of {want['home']}-{want['away']}.)")
+                for sc in self.scenario["sim"].get("scorers", []):
+                    if sc["got"] != sc["wanted"]:
+                        self.scenario["storyline"] += (f" ({sc['player']} scores {sc['got']}, not {sc['wanted']}:"
+                                                       f" the closest playable match.)")
         self.state = MatchState()
         self.trace_log, self.history, self.events_log, self.frames = [], [], [], []
         self._last_meter = -1e9

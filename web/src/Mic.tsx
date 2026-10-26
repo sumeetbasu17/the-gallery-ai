@@ -43,41 +43,80 @@ export function MicButton({
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
   const rec = useRef<Recognition | null>(null);
+  const wanted = useRef(false); // true until the viewer presses Stop
+  const finalText = useRef("");
   const base = useRef("");
   const latest = useRef("");
   const Ctor = factory();
-  useEffect(() => () => rec.current?.stop(), []);
+  useEffect(
+    () => () => {
+      wanted.current = false;
+      rec.current?.stop();
+    },
+    [],
+  );
   if (!Ctor) return null;
 
-  const start = () => {
-    setError("");
+  // Keeps listening through pauses: the browser ends a session after silence, so we start a new one
+  // (keeping what was already said) until the viewer presses Stop.
+  const listen = () => {
     const r = new Ctor();
     r.lang = LOCALES[language] ?? "en-GB";
     r.interimResults = true;
-    r.continuous = false;
-    base.current = value ? `${value.trim()} ` : "";
-    latest.current = value;
+    r.continuous = true;
     r.onresult = (e: any) => {
-      let text = "";
-      for (let i = 0; i < e.results.length; i++)
-        text += e.results[i][0].transcript;
-      latest.current = (base.current + text).slice(0, 400);
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal)
+          finalText.current = `${finalText.current} ${t}`
+            .replace(/\s+/g, " ")
+            .trimStart();
+        else interim += t;
+      }
+      latest.current =
+        `${base.current}${finalText.current}${interim ? ` ${interim}` : ""}`.slice(
+          0,
+          400,
+        );
       onText(latest.current);
     };
-    r.onerror = (e: any) =>
-      setError(
-        e?.error === "not-allowed"
-          ? "Allow the microphone in your browser to speak."
-          : "Didn't catch that. Try again.",
-      );
+    r.onerror = (e: any) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        wanted.current = false;
+        setError("Allow the microphone in your browser to speak.");
+      }
+    };
     r.onend = () => {
+      if (wanted.current) {
+        try {
+          listen();
+          return;
+        } catch {
+          /* fall through and stop */
+        }
+      }
       setListening(false);
-      if (latest.current.trim() && latest.current !== value)
-        onDone?.(latest.current);
+      if (latest.current.trim() && latest.current.trim() !== value.trim())
+        onDone?.(latest.current.trim());
     };
     rec.current = r;
     r.start();
+  };
+
+  const start = () => {
+    setError("");
+    base.current = value ? `${value.trim()} ` : "";
+    latest.current = value;
+    finalText.current = "";
+    wanted.current = true;
+    listen();
     setListening(true);
+  };
+
+  const stop = () => {
+    wanted.current = false;
+    rec.current?.stop();
   };
 
   return (
@@ -86,8 +125,10 @@ export function MicButton({
         type="button"
         className={`mic ${listening ? "on" : ""}`}
         aria-pressed={listening}
-        title={listening ? "Stop listening" : `${label} (voice input)`}
-        onClick={() => (listening ? rec.current?.stop() : start())}
+        title={
+          listening ? "Listening: press to stop" : `${label} (voice input)`
+        }
+        onClick={() => (listening ? stop() : start())}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
           <path
@@ -95,7 +136,7 @@ export function MicButton({
             fill="currentColor"
           />
         </svg>
-        <span>{listening ? "Listening…" : label}</span>
+        <span>{listening ? "Stop" : label}</span>
       </button>
       {error && <span className="field-error mic-error">{error}</span>}
     </span>

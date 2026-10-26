@@ -85,8 +85,9 @@ timeline (block high/mid/low, width wide/balanced/narrow, press_intensity 0-1, t
 specific minutes). Make the tactical story interesting: at least one clear change in the second half.
 The simulator can also honour a FINAL SCORE (set final_score when the brief implies a result or a number of
 goals, e.g. "a 9-goal thriller" -> 5-4) and RED CARDS (side and minute, only when the brief mentions one).
-It cannot script who scores, when goals happen or other incidents, so the storyline must only promise the
-tactics, the final score and any red cards; do not name scorers or describe specific goals."""
+It can also aim for NAMED SCORERS (scorers: player and number of goals, only when the brief names them,
+using exact names from the SQUADS). It cannot script when goals happen or other incidents, so the storyline
+must only promise the tactics, the final score, red cards and named scorers."""
 
 PUNDIT = f"""[role:pundit]
 You are the studio pundit answering a viewer's question live, during the match. Use your tools to look up
