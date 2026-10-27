@@ -101,6 +101,9 @@ export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [tab, setTab] = useState<Tab>("live");
   const [setup, setSetup] = useState(false); // the kick-off screen, opened from "New match"
+  // A visitor lands on the kick-off screen unless a match is live right now; a finished match
+  // from someone else's session stays in Matches instead of greeting them.
+  const [entered, setEntered] = useState(false);
   const [term, setTerm] = useState<string | null>(null);
   const [lowerThird, setLowerThird] = useState<Overlay | null>(null);
   const [callout, setCallout] = useState<Overlay | null>(null);
@@ -186,7 +189,8 @@ export default function App() {
   useEffect(() => () => clearGraphics(), [clearGraphics]);
 
   useEffect(() => {
-    if (state.recap && !viewing) setTab((t) => (t === "live" ? "recap" : t));
+    if (state.recap && !viewing && entered)
+      setTab((t) => (t === "live" ? "recap" : t));
   }, [state.recap, viewing]);
 
   useEffect(() => {
@@ -205,6 +209,7 @@ export default function App() {
     stopSpeaking();
     setTab("live");
     setSetup(false);
+    setEntered(true);
     start(seed, speed, source, brief);
   };
   const kickoff = kickoff0;
@@ -215,6 +220,7 @@ export default function App() {
       replay.stop();
       stopSpeaking();
       await openArchive(id);
+      setEntered(true);
       setTab("recap");
     } catch (e) {
       window.alert(
@@ -253,8 +259,7 @@ export default function App() {
       : "full time";
   const status = state.status;
   const finishing = status.phase === "finishing";
-  const started =
-    !!viewing || state.running || !!state.frame || state.overlays.length > 0;
+  const started = !!viewing || state.running || entered;
 
   if (!started || setup) {
     return (
